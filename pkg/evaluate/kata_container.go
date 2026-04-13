@@ -17,8 +17,8 @@ limitations under the License.
 package evaluate
 
 import (
-	"io/ioutil"
 	"log"
+	"os"
 	"strings"
 )
 
@@ -36,7 +36,7 @@ var kataIndicators = []string{
 // exclusive to Kata Containers guest VMs and reports whether the current
 // environment appears to be a Kata sandbox.
 func CheckKataContainer() {
-	data, err := ioutil.ReadFile("/proc/cmdline")
+	data, err := os.ReadFile("/proc/cmdline")
 	if err != nil {
 		log.Printf("kata: unable to read /proc/cmdline: %v", err)
 		return
@@ -45,7 +45,7 @@ func CheckKataContainer() {
 	cmdline := string(data)
 	log.Printf("kata: /proc/cmdline: %s", strings.TrimSpace(cmdline))
 
-	matched := []string{}
+	var matched []string
 	for _, indicator := range kataIndicators {
 		if strings.Contains(cmdline, indicator) {
 			matched = append(matched, indicator)
