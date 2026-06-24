@@ -1,9 +1,4 @@
-# CDK - Container Penetration Toolkit
-
-## Legal Disclaimer
-
-Usage of CDK for attacking targets without prior mutual consent is illegal.
-CDK is for security testing purposes only.
+# CDK 编译与功能
 
 ## 编译
 
@@ -68,16 +63,6 @@ upx --best --ultra-brute cdk
 
 ---
 
-## 快速开始
-
-先跑评估，按推荐选择 exploit：
-
-```bash
-cdk eva           # 基础评估
-cdk eva --full    # 全量评估（含文件扫描）
-cdk run --list    # 列出所有可用 exploit
-```
-
 ## 功能
 
 三大模块，命令 `cdk <模块> ...`。
@@ -110,7 +95,6 @@ cdk eva --full    # 全量
 | `cdk run docker-sock-check` / `docker-sock-pwn` | docker.sock 检查与利用 |
 | `cdk run docker-api-pwn` | docker HTTP API 利用 |
 | `cdk run kubelet-var-log-escape` | kubelet var/log 逃逸 |
-| `cdk run copy-fail-cve-2026-31431` | CVE-2026-31431 copy-fail 提权（non-root→root, x86_64） |
 
 K8s 利用：
 
