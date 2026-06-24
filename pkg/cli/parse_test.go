@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/cdk-team/CDK/pkg/cli"
-	_ "github.com/cdk-team/CDK/pkg/exploit" // register all exploits
+	_ "github.com/cdk-team/CDK/pkg/audit" // register all exploits
 )
 
 type testArgsCase struct {
@@ -57,7 +57,7 @@ func doParseCDKMainWithTimeout() {
 func TestParseCDKMain(t *testing.T) {
 
 	// ./cdk eva 2>&1 | head
-	// ./cdk run test-poc | head
+	// ./cdk run test-check | head
 	// ./cdk ifconfig | head
 
 	tests := []testArgsCase{
@@ -72,8 +72,8 @@ func TestParseCDKMain(t *testing.T) {
 		// 	successStr: "randomize_va_space",
 		// },
 		{
-			name:       "./cdk run test-poc",
-			args:       []string{"./cdk_cli_path", "run", "test-poc"},
+			name:       "./cdk run test-check",
+			args:       []string{"./cdk_cli_path", "run", "test-check"},
 			successStr: "run success",
 		},
 		{

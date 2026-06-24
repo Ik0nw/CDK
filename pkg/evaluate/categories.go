@@ -63,7 +63,7 @@ var (
 	}
 	CategoryKernel = CategorySpec{
 		ID:              "exploit.kernel",
-		Title:           "Exploit Pre - Kernel Exploits",
+		Title:           "Exploit Pre - Kernel CVEs",
 		DefaultProfiles: []string{ProfileBasic, ProfileExtended},
 		Order:           1100,
 	}

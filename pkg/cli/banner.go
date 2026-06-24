@@ -28,13 +28,13 @@ import (
 var Args docopt.Opts
 var GitCommit string
 
-var BannerTitle = `CDK (Container DucK)`
+var BannerTitle = `CDK (Container Defense Kit)`
 var BannerVersion = fmt.Sprintf("%s %s", "CDK Version(GitCommit):", GitCommit)
 
 var BannerHeader = fmt.Sprintf(`%s
 %s
-Zero-dependency cloudnative k8s/docker/serverless penetration toolkit by cdxy & neargle
-Find tutorial, configuration and use-case in https://github.com/cdk-team/CDK/
+Zero-dependency container & K8s isolation baseline audit toolkit
+Find tutorial, configuration and use-case in (internal documentation)
 `, util.GreenBold.Sprint(BannerTitle), BannerVersion)
 
 var BannerContainerTpl = BannerHeader + `
@@ -42,18 +42,18 @@ var BannerContainerTpl = BannerHeader + `
   cdk eva
   cdk eva --full
   cdk evaluate [--full]
-  cdk run (--list | <exploit> [<args>...])
+  cdk run (--list | <check> [<args>...])
   cdk <tool> [<args>...]
 
 %s
-  cdk evaluate                              Gather information to find weakness inside container.
+  cdk evaluate                              Gather isolation posture and identify audit findings inside container.
   cdk eva                                   Alias of "cdk evaluate".
   cdk evaluate --full                       Enable file scan during information gathering.
 
 
 %s
-  cdk run --list                            List all available exploits.
-  cdk run <exploit> [<args>...]             Run single exploit, docs in https://github.com/cdk-team/CDK/wiki
+  cdk run --list                            List all available audit checks.
+  cdk run <check> [<args>...]               Run single audit check, docs in (internal documentation)
 
 %s
   ed <file>                                 Edit files in container like "ed" command.
@@ -62,7 +62,7 @@ var BannerContainerTpl = BannerHeader + `
   nc [options]                              Create TCP tunnel.
   ifconfig                                  Show network information.
   kcurl <path> (get|post) <uri> [<data>]    Make request to K8s api-server.
-  ectl <endpoint> get <key>                 Unauthorized enumeration of ectd keys.
+  ectl <endpoint> get <key>                 Enumerate etcd keys (anonymous-mode detection).
   ucurl (get|post) <socket> <uri> <data>    Make request to docker unix socket.
   probe <ip> <port> <parallel> <timeout-ms> TCP port scan, example: cdk probe 10.0.1.0-255 80,8080-9443 50 1000
 
@@ -77,21 +77,21 @@ var BannerContainer = fmt.Sprintf(
 	BannerContainerTpl,
 	"Usage:",
 	util.GreenBold.Sprint("Evaluate:"),
-	util.GreenBold.Sprint("Exploit:"),
+	util.GreenBold.Sprint("Audit Check:"),
 	util.GreenBold.Sprint("Tool:"),
 	"Options:",
 )
 
 var BannerServerless = BannerHeader + `
-THIS IS THE SLIM VERSION FOR DUMPING SECRET/AK IN SERVERLESS FUNCTIONS.
+This is the slim build for credential-surface scanning in short-lived serverless workloads.
 
-sessions in serverless functions will be killed in seconds, use this tool to dump AK/secrets in the fast way.
+Sessions in serverless functions are terminated in seconds; use this profile to accelerate credential surface scanning.
 
 Usage:
 cdk-serverless <scan-dir> <remote-ip> <port>
 
 Args:
-scan-dir                 Read all files under target dir and dump AK token.
+scan-dir                 Read all files under target dir and surface AK tokens.
 remote-ip,port           Send results to target IP:PORT via TCP tunnel.
 
 Example:

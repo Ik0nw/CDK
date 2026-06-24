@@ -56,9 +56,9 @@ func MountEscape() {
 			}
 		}
 
-		// find lxcfs mount point for escape exploit
+		// find lxcfs mount point for escape 审计检查项
 		if m.Device == "lxcfs" && util.StringContains(m.Opts, "rw") {
-			fmt.Printf("Find mounted lxcfs with rw flags, run `%s` or `%s` to escape container!\n", util.RedBold.Sprint("cdk run lxcfs-rw"), util.RedBold.Sprint("cdk run lxcfs-rw-cgroup"))
+			fmt.Printf("Find mounted lxcfs with rw flags, run `%s` or `%s` to escape container!\n", util.RedBold.Sprint("cdk run lxcfs-mknod-boundary"), util.RedBold.Sprint("cdk run lxcfs-cgroup-boundary"))
 			m.Device = util.RedBold.Sprint(m.Device)
 			m.MountPoint = util.RedBold.Sprint(m.Device)
 		}

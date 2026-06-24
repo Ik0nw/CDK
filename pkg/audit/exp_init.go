@@ -1,5 +1,5 @@
 /*
-Copyright 2022 The Authors of Internal CDK compliance tooling contributors
+Copyright 2022 The Authors of https://github.com/CDK-TEAM/CDK .
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,7 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package conf
+package exploit
 
-// ThinIgnoreTool Prompt the users that this tool is not included in the thin version.
-var ThinIgnoreTool = "You are using the thin version. In order to be more lightweight, this tool is not included in the thin version."
+import (
+	// register all kinds of exploits
+	_ "github.com/cdk-team/CDK/pkg/audit/credential_access"
+	_ "github.com/cdk-team/CDK/pkg/audit/discovery"
+	_ "github.com/cdk-team/CDK/pkg/audit/boundary"
+	_ "github.com/cdk-team/CDK/pkg/audit/persistence"
+	_ "github.com/cdk-team/CDK/pkg/audit/privilege_validation"
+	_ "github.com/cdk-team/CDK/pkg/audit/remote_control"
+)
+
+func init() {
+}

