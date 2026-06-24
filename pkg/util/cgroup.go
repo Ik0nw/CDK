@@ -195,11 +195,11 @@ func GetKernelVersion() ([]int, error) {
 // get cgroup version V1/V2
 // hybrid mode will not work in container
 func GetCgroupVersion() (int, error) {
-	// detect by /sys/fs/cgroup/cgroup.controllers
+	// detect by cgroup.controllers file under the cgroup v2 root
 	// others:
 	// or /proc/filesystems
 	// or directly try to mount cgroup2 with none
-	_, err := os.Stat("/sys/fs/cgroup/cgroup.controllers")
+	_, err := os.Stat(CgroupControllers())
 	if err == nil {
 		return 2, nil
 	}

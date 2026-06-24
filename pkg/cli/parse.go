@@ -109,7 +109,7 @@ func ParseCDKMain() bool {
 		args := Args["<args>"].([]string)
 
 		switch Args["<tool>"] {
-		case "vi":
+		case "ed":
 			PassInnerArgs()
 			vi.RunVendorVi()
 		case "kcurl":

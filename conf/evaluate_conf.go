@@ -44,7 +44,7 @@ var LinuxCommandChecklist = []string{
 	"mysql-client",
 	"git",
 	"svn",
-	"vi",
+	"ed",
 	"capsh",
 	"mount",
 	"fdisk",

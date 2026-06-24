@@ -56,7 +56,7 @@ var BannerContainerTpl = BannerHeader + `
   cdk run <exploit> [<args>...]             Run single exploit, docs in https://github.com/cdk-team/CDK/wiki
 
 %s
-  vi <file>                                 Edit files in container like "vi" command.
+  ed <file>                                 Edit files in container like "ed" command.
   ps                                        Show process information like "ps -ef" command.
   netstat                                   Like "netstat -antup" command.
   nc [options]                              Create TCP tunnel.
