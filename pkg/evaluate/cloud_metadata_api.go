@@ -45,5 +45,6 @@ func CheckCloudMetadataAPI() {
 }
 
 func init() {
-	RegisterSimpleCheck(CategoryCloudMetadata, "cloud.metadata_api", "Probe cloud metadata API endpoints", CheckCloudMetadataAPI)
+	RegisterSimplePrereqCheck(CategoryCloudMetadata, "cloud.metadata_api",
+		"Probe cloud metadata API endpoints", []string{"InCloud"}, CheckCloudMetadataAPI)
 }

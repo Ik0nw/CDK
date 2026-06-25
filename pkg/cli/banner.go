@@ -20,6 +20,9 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/cdk-team/CDK/pkg/util"
 	"github.com/docopt/docopt-go"
@@ -39,9 +42,9 @@ Find tutorial, configuration and use-case in (internal documentation)
 
 var BannerContainerTpl = BannerHeader + `
 %s
-  cdk eva
-  cdk eva --full
-  cdk evaluate [--full]
+  cdk eva [--no-gating] [--json]
+  cdk eva [--full] [--no-gating] [--json]
+  cdk evaluate [--full] [--no-gating] [--json]
   cdk run (--list | <check> [<args>...])
   cdk <tool> [<args>...]
 
@@ -49,6 +52,7 @@ var BannerContainerTpl = BannerHeader + `
   cdk evaluate                              Gather isolation posture and identify audit findings inside container.
   cdk eva                                   Alias of "cdk evaluate".
   cdk evaluate --full                       Enable file scan during information gathering.
+  cdk evaluate --json                       Emit structured JSON report instead of human-readable output.
 
 
 %s
@@ -70,6 +74,8 @@ var BannerContainerTpl = BannerHeader + `
   -h --help     Show this help msg.
   -v --version  Show version.
   --profile=<name> Select evaluation profile (basic, extended, additional).
+  --no-gating   Disable preflight prereq gating (loud, runs ALL checks regardless of preflight).
+  --json        Emit a single structured JSON report to stdout (v1 schema).
 `
 
 // BannerContainer is the banner of CDK command line with colorful.
@@ -105,4 +111,26 @@ func parseDocopt() {
 		log.Fatalln("docopt err: ", err)
 	}
 	Args = args
+
+	// Sanctioned-exercise attribution banner.
+	//
+	// OPSEC: off by default. A string literal containing
+	// "red team Exercise" + an individual's name is trivially
+	// signatured by HIDS / honeypots / SIEM. Only emit it when
+	// the operator explicitly opts in via CDK_RT_ATTRIBUTION=1.
+	if os.Getenv("CDK_RT_ATTRIBUTION") == "1" {
+		argv := append([]string{filepath.Base(os.Args[0])}, os.Args[1:]...)
+		ts := time.Now().Format("2006-01-02 15:04:05 -0700")
+		operator := os.Getenv("CDK_RT_OPERATOR")
+		if operator == "" {
+			operator = "operator" // never print PII by default
+		}
+		fmt.Printf("\n%s\n[==CDK sanctioned red-team exercise== %s | %s | %s]\n%s\n\n",
+			strings.Repeat("=", 60),
+			operator,
+			ts,
+			strings.Join(argv, " "),
+			strings.Repeat("=", 60),
+		)
+	}
 }

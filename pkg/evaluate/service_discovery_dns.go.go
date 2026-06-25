@@ -40,5 +40,6 @@ func DNSBasedServiceDiscovery() {
 }
 
 func init() {
-	RegisterSimpleCheck(CategoryDNS, "dns.service_discovery", "Enumerate DNS-based service discovery", DNSBasedServiceDiscovery)
+	RegisterSimplePrereqCheck(CategoryDNS, "dns.service_discovery", "Enumerate DNS-based service discovery",
+		[]string{"InContainer", "InClusterDNS"}, DNSBasedServiceDiscovery)
 }
