@@ -48,5 +48,6 @@ func SearchLocalFilePath() {
 }
 
 func init() {
-	RegisterSimpleCheck(CategorySensitiveFiles, "filesystem.sensitive", "Search for sensitive file paths", SearchLocalFilePath)
+	RegisterSimplePrereqCheck(CategorySensitiveFiles, "filesystem.sensitive",
+		"Search for sensitive file paths", []string{"InContainer"}, SearchLocalFilePath)
 }

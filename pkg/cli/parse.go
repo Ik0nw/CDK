@@ -18,6 +18,7 @@ package cli
 
 import (
 	"fmt"
+
 	"github.com/cdk-team/CDK/pkg/tool/netstat"
 
 	"github.com/cdk-team/CDK/pkg/evaluate"
@@ -74,7 +75,17 @@ func ParseCDKMain() bool {
 	// fix #37 https://github.com/cdk-team/CDK/issues/37
 	if ok.(bool) || fok.(bool) {
 
-		fmt.Printf(BannerHeader)
+		// --json: emit one structured JSON object to stdout; suppress the
+		// human-readable banner header so jq(1) works cleanly.
+		jsonRequested := false
+		if raw, ok := Args["--json"]; ok {
+			if b, ok2 := raw.(bool); ok2 {
+				jsonRequested = b
+			}
+		}
+		if !jsonRequested {
+			fmt.Printf(BannerHeader)
+		}
 		profileID := evaluate.ProfileBasic
 		if rawProfile, ok := Args["--profile"]; ok {
 			if v, ok := rawProfile.(string); ok && v != "" {
@@ -84,7 +95,16 @@ func ParseCDKMain() bool {
 		if profileID == evaluate.ProfileBasic && Args["--full"].(bool) {
 			profileID = evaluate.ProfileExtended
 		}
-		if err := evaluate.NewEvaluator().RunProfile(profileID, nil); err != nil {
+		noGating := false
+		if raw, ok := Args["--no-gating"]; ok {
+			if b, ok2 := raw.(bool); ok2 {
+				noGating = b
+			}
+		}
+		ctx := evaluate.NewContext(nil)
+		ctx.NoGating = noGating
+		ctx.JSON = jsonRequested
+		if err := evaluate.NewEvaluator().RunProfile(profileID, ctx); err != nil {
 			log.Printf("evaluate profile %q failed: %v", profileID, err)
 		}
 		return true

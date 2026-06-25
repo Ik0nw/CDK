@@ -35,5 +35,6 @@ func SearchAvailableCommands() {
 }
 
 func init() {
-	RegisterSimpleCheck(CategoryCommands, "commands.available", "Enumerate available commands", SearchAvailableCommands)
+	RegisterSimplePrereqCheck(CategoryCommands, "commands.available", "Enumerate available commands",
+		[]string{"InContainer"}, SearchAvailableCommands)
 }

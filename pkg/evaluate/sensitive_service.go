@@ -39,5 +39,6 @@ func SearchSensitiveService() {
 }
 
 func init() {
-	RegisterSimpleCheck(CategoryServices, "services.sensitive_service", "Search sensitive services", SearchSensitiveService)
+	RegisterSimplePrereqCheck(CategoryServices, "services.sensitive_service", "Search sensitive services",
+		[]string{"InContainer"}, SearchSensitiveService)
 }
