@@ -76,10 +76,10 @@ type JSONCheck struct {
 	Prereqs     []string `json:"prereqs,omitempty"`
 
 	// Skipped reasons; non-empty iff the check did not run.
-	Skipped *JSONSkipped `json:"skipped,omitempty"`
+	Skipped *JSONSkipped `json:"skipped"`
 
 	// Execution outcome; non-nil iff the check ran.
-	Ran *JSONRan `json:"ran,omitempty"`
+	Ran *JSONRan `json:"ran"`
 }
 
 // JSONSkipped records prereq-gating decisions (F33 asks for names not just counts).
@@ -89,8 +89,8 @@ type JSONSkipped struct {
 
 // JSONRan records an executed check's runtime evidence.
 type JSONRan struct {
-	Error  string `json:"error,omitempty"`  // if Run returned non-nil
-	Output string `json:"output,omitempty"` // merged stdout+stderr captured during the check
+	Error  string `json:"error"`  // if Run returned non-nil
+	Output string `json:"output"` // merged stdout+stderr captured during the check
 }
 
 // JSON machinery lives in a single package-level struct because check
