@@ -110,15 +110,22 @@ func parseDocopt() {
 	}
 	Args = args
 
-	// Red-team attribution banner. Printed to stdout immediately after
-	// successful CLI parse so blue-team SIEM / honeypot-side logs
-	// unambiguously identify this as a sanctioned red-team exercise
-	// (not a real incident), regardless of which subcommand runs.
-	{
+	// Sanctioned-exercise attribution banner.
+	//
+	// OPSEC: off by default. A string literal containing
+	// "red team Exercise" + an individual's name is trivially
+	// signatured by HIDS / honeypots / SIEM. Only emit it when
+	// the operator explicitly opts in via CDK_RT_ATTRIBUTION=1.
+	if os.Getenv("CDK_RT_ATTRIBUTION") == "1" {
 		argv := append([]string{filepath.Base(os.Args[0])}, os.Args[1:]...)
 		ts := time.Now().Format("2006-01-02 15:04:05 -0700")
-		fmt.Printf("\n%s\n[==Row Data red team Exercise== @xing chen | %s | %s]\n%s\n\n",
+		operator := os.Getenv("CDK_RT_OPERATOR")
+		if operator == "" {
+			operator = "operator" // never print PII by default
+		}
+		fmt.Printf("\n%s\n[==CDK sanctioned red-team exercise== %s | %s | %s]\n%s\n\n",
 			strings.Repeat("=", 60),
+			operator,
 			ts,
 			strings.Join(argv, " "),
 			strings.Repeat("=", 60),
