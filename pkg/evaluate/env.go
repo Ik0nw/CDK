@@ -268,9 +268,9 @@ func detectInCloud(env *Env) {
 			if strings.Contains(sv, "volcengine") || strings.Contains(sv, "bytedance") {
 				return true
 			}
-			// Rule 2: product_name byteplus + hostname iv-*/v-*
-			if strings.Contains(pn, "byteplus") &&
-				(strings.HasPrefix(hnl, "iv-") || strings.HasPrefix(hnl, "v-")) {
+			// Rule 2: product_name BytePlus OR ECS, AND hostname iv-/v- prefix
+			hasPrefix := strings.HasPrefix(hnl, "iv-") || strings.HasPrefix(hnl, "v-")
+			if (strings.Contains(pn, "byteplus") || pn == "ecs") && hasPrefix {
 				return true
 			}
 			// Rule 3: cloud-init datasource mentions volc/byteplus
@@ -291,6 +291,8 @@ func detectInCloud(env *Env) {
 			puuid := strings.ToLower(f["product_uuid"])
 			bv := strings.ToLower(f["bios_vendor"])
 			ds := strings.ToLower(f["cloud_datasource"])
+			// Relaxed vs spec (==): bios_vendor strings sometimes include trailing
+			// whitespace / firmware tags; Contains keeps this robust w/o false-positive risk.
 			return strings.HasPrefix(puuid, "ec2") ||
 				strings.Contains(bv, "amazon ec2") ||
 				strings.Contains(ds, "datasourceec2")
@@ -330,11 +332,9 @@ func detectInCloud(env *Env) {
 	}
 }
 
-// vendorFiles reads every DMI + cloud-init file we use, once, into a map.
-// Missing files yield "".  Keyed by short name (not full path).
-// NOTE: the root parameter is accepted for API consistency but paths are
-// resolved by readFileFirstLine which already prepends the package-level
-// envRoot internally.
+// vendorFiles reads DMI + cloud-init vendor-identification files into
+// a {path: first-line} map. Keys are envRoot-relative (no leading slash);
+// values are trimmed. Missing files produce empty-string values.
 func vendorFiles() map[string]string {
 	r := map[string]string{}
 	m := map[string]string{

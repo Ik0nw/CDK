@@ -40,7 +40,7 @@ Find tutorial, configuration and use-case in (internal documentation)
 var BannerContainerTpl = BannerHeader + `
 %s
   cdk eva [--no-gating]
-  cdk eva --full [--no-gating]
+  cdk eva [--full] [--no-gating]
   cdk evaluate [--full] [--no-gating]
   cdk run (--list | <check> [<args>...])
   cdk <tool> [<args>...]
