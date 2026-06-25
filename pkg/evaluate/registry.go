@@ -266,3 +266,27 @@ func (c *categoryBuilder) build() Category {
 func defaultProfiles() []Profile {
 	return globalRegistry.profiles()
 }
+
+// RegisterSimplePrereqCheck is like RegisterSimpleCheck but also attaches
+// preflight prerequisites.  See Check.Prereqs for semantics.
+func RegisterSimplePrereqCheck(category CategorySpec, id, title string,
+	prereqs []string, fn func(), profiles ...string) {
+	RegisterCheck(category, Check{
+		ID:      id,
+		Title:   title,
+		Run:     func(*Context) error { fn(); return nil },
+		Prereqs: prereqs,
+	}, profiles...)
+}
+
+// RegisterContextPrereqCheck is like RegisterContextCheck but also
+// attaches preflight prerequisites.
+func RegisterContextPrereqCheck(category CategorySpec, id, title string,
+	prereqs []string, fn CheckFunc, profiles ...string) {
+	RegisterCheck(category, Check{
+		ID:      id,
+		Title:   title,
+		Run:     fn,
+		Prereqs: prereqs,
+	}, profiles...)
+}

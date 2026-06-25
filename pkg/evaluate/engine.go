@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"sort"
+	"strings"
 
 	"github.com/cdk-team/CDK/pkg/util"
 )
@@ -18,6 +19,29 @@ const (
 // Context carries shared dependencies for evaluation checks.
 type Context struct {
 	Logger *log.Logger
+
+	// Env holds the preflight environment detection result.  Populated
+	// automatically by Evaluator.RunProfile if nil; tests may inject one.
+	Env *Env
+
+	// NoGating disables prereq-based skipping (the --no-gating CLI flag).
+	NoGating bool
+
+	// Skipped accumulates skip reasons during the profile run.  Read via
+	// printSkipSummary once profile finishes.
+	Skipped []SkipReason
+
+	// ran counts checks that actually executed.  Incremented in
+	// Category.run; reset in RunProfile.
+	ran int
+}
+
+// SkipReason records a check that was not run and which prereqs were
+// missing.  Unknown prereq names appear as "<name>?" (trailing qmark)
+// per MissingPrereqs contract.
+type SkipReason struct {
+	CheckID string
+	Missing []string
 }
 
 // NewContext constructs a Context instance with a default logger when none is provided.
@@ -37,6 +61,10 @@ type Check struct {
 	Title       string
 	Description string
 	Run         CheckFunc
+	// Prereqs are the names of Env flags (see flagByName in env.go) that
+	// must ALL be true for this check to execute.  Empty/nil means the
+	// check runs unconditionally.
+	Prereqs []string
 }
 
 func (c Check) execute(ctx *Context) error {
@@ -57,9 +85,29 @@ func (c Category) run(ctx *Context) {
 	util.PrintH2(c.Title)
 	logger := loggerFromContext(ctx)
 	for _, check := range c.Checks {
-		if err := check.execute(ctx); err != nil {
-			logger.Printf("check %s failed: %v", readableCheckLabel(check), err)
+		label := readableCheckLabel(check)
+		if !ctx.NoGating {
+			missing := MissingPrereqs(ctx.Env, check.Prereqs)
+			if len(missing) > 0 {
+				ctx.Skipped = append(ctx.Skipped, SkipReason{
+					CheckID: check.ID,
+					Missing: missing,
+				})
+				// Log "unknown prereq" entries distinctly.
+				for _, m := range missing {
+					if strings.HasSuffix(m, "?") {
+						logger.Printf("WARNING: check %s has unknown prereq %q; skipping",
+							label, strings.TrimSuffix(m, "?"))
+					}
+				}
+				logger.Printf("skip %s: prereqs not met: %v", label, missing)
+				continue
+			}
 		}
+		if err := check.execute(ctx); err != nil {
+			logger.Printf("check %s failed: %v", label, err)
+		}
+		ctx.ran++
 	}
 }
 
@@ -125,7 +173,13 @@ func (e *Evaluator) RunProfile(id string, ctx *Context) error {
 	if ctx == nil {
 		ctx = NewContext(nil)
 	}
+	ctx.ran = 0
+	ctx.Skipped = nil
+	if ctx.Env == nil {
+		ctx.Env = DetectEnv()
+	}
 	profile.run(ctx)
+	printSkipSummary(ctx)
 	return nil
 }
 
@@ -141,4 +195,34 @@ func readableCheckLabel(check Check) string {
 		return fmt.Sprintf("%s (%s)", check.Title, check.ID)
 	}
 	return check.Title
+}
+
+// printSkipSummary emits a one-line summary of skipped checks to stdout.
+// It also needs the total number of checks that actually ran; that count
+// is tracked on Context.Ran (see Category.run's execute branch below).
+func printSkipSummary(ctx *Context) {
+	if ctx == nil {
+		return
+	}
+	// Increment counter in Category.run → add a Ran field to Context.
+	// (We patch Context once more below.)
+	ran := ctx.ran
+	total := ran + len(ctx.Skipped)
+	if total == 0 {
+		return
+	}
+	counts := map[string]int{}
+	for _, s := range ctx.Skipped {
+		for _, m := range s.Missing {
+			counts[m]++
+		}
+	}
+	pairs := make([]string, 0, len(counts))
+	for k, v := range counts {
+		pairs = append(pairs, fmt.Sprintf("%s×%d", k, v))
+	}
+	sort.Strings(pairs)
+	fmt.Fprintf(os.Stdout,
+		"[✓] %d checks ran, [⏭] %d skipped (missing: %s)\n",
+		ran, len(ctx.Skipped), strings.Join(pairs, ", "))
 }
