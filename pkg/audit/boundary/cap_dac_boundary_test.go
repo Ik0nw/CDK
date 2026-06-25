@@ -1,0 +1,93 @@
+//go:build linux && !no_cap_dac_boundary
+// +build linux,!no_cap_dac_boundary
+
+/*
+Copyright 2022 The Authors of https://github.com/CDK-TEAM/CDK .
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package escaping
+
+import (
+	"fmt"
+	"strings"
+	"testing"
+)
+
+func TestWriteString(t *testing.T) {
+
+	var (
+		defaultRef    = "/etc/hostname"
+		defaultTarget = "/etc/shadow"
+		defaultShell  = "/bin/bash"
+	)
+
+	var buffer strings.Builder
+
+	buffer.WriteString("Read files from host or chroot to host and spawn a cmd. ")
+	buffer.WriteString("The First argument is file bind-mounted to container from host (default: %s), ")
+	buffer.WriteString("the second argument specifies which file to read (default: %s), ")
+	buffer.WriteString("the third and remaining arguments specifies command executed in host root filesystem (default: %s). ")
+	buffer.WriteString("If there is one argument, the first argument is the target file to read. ")
+	buffer.WriteString("When second argument is \"/\", this check will spawn a cmd. ")
+
+	fmt.Println(fmt.Sprintf(buffer.String(), defaultRef, defaultTarget, defaultShell))
+	exploit := CapDacReadSearch{}
+	fmt.Println(exploit.Desc())
+
+}
+
+func TestRootFileHandle(t *testing.T) {
+	tests := []struct {
+		name       string
+		fsType     int64
+		handleType int32
+		handle     []byte
+	}{
+		{
+			name:       "ext4",
+			fsType:     ext4SuperMagic,
+			handleType: 1,
+			handle:     []byte{0x02, 0, 0, 0, 0, 0, 0, 0},
+		},
+		{
+			name:       "xfs",
+			fsType:     xfsSuperMagic,
+			handleType: 129,
+			handle:     []byte{0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h, err := rootFileHandleForFsType(tt.fsType)
+			if err != nil {
+				t.Fatalf("rootFileHandleForFsType(%#x): %v", tt.fsType, err)
+			}
+
+			if h.Type() != tt.handleType {
+				t.Fatalf("handle type = %d, want %d", h.Type(), tt.handleType)
+			}
+			if got := h.Bytes(); string(got) != string(tt.handle) {
+				t.Fatalf("handle bytes = %v, want %v", got, tt.handle)
+			}
+		})
+	}
+}
+
+func TestRootFileHandleForFsTypeUnsupported(t *testing.T) {
+	if _, err := rootFileHandleForFsType(0x12345678); err == nil {
+		t.Fatal("expected unsupported filesystem error")
+	}
+}

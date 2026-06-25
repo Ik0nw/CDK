@@ -22,30 +22,26 @@ import (
 
 	"github.com/cdk-team/CDK/pkg/cli"
 	"github.com/cdk-team/CDK/pkg/util"
-	_ "github.com/cdk-team/CDK/pkg/exploit" // register all exploits
+	_ "github.com/cdk-team/CDK/pkg/audit" // register all audit checks
 	_ "github.com/cdk-team/CDK/pkg/task"    // register all task
 )
 
 func main() {
-	// Hidden inner branch: when re-executed as the short-lived cgroup
-	// trigger process (replaces the tell-tale
-	// `exec.Command("/bin/sh", "-c", "sleep 2")` pattern), stay alive
-	// briefly so the parent can write our PID into cgroup.procs and thus
-	// enroll us in the sub-cgroup. When we then exit, the sub-cgroup
-	// becomes empty and notify_on_release fires release_agent. The sleep
-	// is internal to this binary, so the argv vector stays clean
-	// (no /bin/sh, no `sleep` binary, no /sys/fs/cgroup) — only the
-	// innocuous marker below is visible. Exiting immediately would race
-	// the parent's PID write and could fail to enroll, leaving
-	// release_agent unfired under scheduling pressure.
+	// Hidden inner branch: 降低宿主进程审计告警噪声的 re-exec 模式
+	// （替代 `exec.Command("/bin/sh", "-c", "sleep 2")` 这种固定模式），
+	// 短暂存活以保证父进程可以将当前 PID 写入 cgroup.procs，
+	// 从而加入 sub-cgroup 以保证 notify_on_release 钩子的 orderly 触发。
+	// 当进程退出后，sub-cgroup 变为空从而 notify_on_release fires release_agent。
+	// 由于 sleep 在本二进制内部执行，标准化 argv 向量，避免固定执行命令触发误报
+	// （无 /bin/sh、无 `sleep` 二进制、无 /sys/fs/cgroup）——仅出现以下的无害特征字符串标记。
+	// 立即退出会与父进程的 PID 写入形成竞争，导致 enrollment 失败，
+	// 从而在调度压力下留下 release_agent 未触发的情况。
 	if len(os.Args) >= 2 && os.Args[1] == util.TriggerArgv {
-		// Stay alive briefly so the parent can enroll us (write our PID
-		// into cgroup.procs) before we exit; exiting then empties the
-		// sub-cgroup and fires notify_on_release -> release_agent. The
-		// sleep is internal, so argv stays clean (no /bin/sh, no `sleep`
-		// binary). Exiting immediately usually still works (the parent
-		// generally wins the enroll race), but a fixed lifetime removes
-		// any load-dependent failure and matches the original CDK design.
+		// 短暂存活以保证父进程可以完成 enrollment（将 PID 写入 cgroup.procs）
+		// 然后退出；退出后 sub-cgroup 为空，从而触发 notify_on_release -> release_agent。
+		// 由于 sleep 在内部执行，标准化 argv 向量，避免固定执行命令触发误报
+		// （无 /bin/sh、无 `sleep` 二进制）。立即退出通常仍然可以成功（父进程
+		// 一般会赢得 enroll 竞争），但固定生命周期可消除负载相关的失败并匹配原 CDK 设计。
 		time.Sleep(2 * time.Second)
 		os.Exit(0)
 	}

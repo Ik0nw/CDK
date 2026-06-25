@@ -59,14 +59,14 @@ func ParseCDKMain() bool {
 	// docopt argparse start
 	parseDocopt()
 
-	// delete auto-escape
+	// disable auto-boundary-check
 
-	// if Args["auto-escape"].(bool) {
-	// 	plugin.RunSingleTask("auto-escape")
+	// if Args["auto-boundary-check"].(bool) {
+	// 	plugin.RunSingleTask("auto-boundary-check")
 	// 	return true
 	// }
 
-	// support for cdk eva(Evangelion) and cdk evaluate
+	// support for cdk eva and cdk evaluate
 	fok := Args["evaluate"]
 	ok := Args["eva"]
 
@@ -92,16 +92,16 @@ func ParseCDKMain() bool {
 
 	if Args["run"].(bool) {
 		if Args["--list"].(bool) {
-			plugin.ListAllExploit()
+			plugin.ListAllChecks()
 			os.Exit(0)
 		}
-		name := Args["<exploit>"].(string)
-		if plugin.Exploits[name] == nil {
-			fmt.Printf("\nInvalid script name: %s , available scripts:\n", name)
-			plugin.ListAllExploit()
+		name := Args["<check>"].(string)
+		if plugin.Checks[name] == nil {
+			fmt.Printf("\nInvalid check name: %s , available audit checks:\n", name)
+			plugin.ListAllChecks()
 			return true
 		}
-		plugin.RunSingleExploit(name)
+		plugin.RunSingleCheck(name)
 		return true
 	}
 

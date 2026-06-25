@@ -9,8 +9,8 @@ import (
 )
 
 // kernelExploitSuggester
-// use https://github.com/mzet-/linux-exploit-suggester to check kernel exploit
-// run linux-exploit-suggester bash script to check kernel exploit
+// use https://github.com/mzet-/linux-exploit-suggester to check kernel vulnerability
+// run linux-exploit-suggester bash script to check kernel vulnerability
 func kernelExploitSuggester() {
 	script := conf.KernelExploitScript
 	// check bash command available
@@ -26,7 +26,7 @@ func kernelExploitSuggester() {
 		return
 	}
 
-	// get all available exploit
+	// get all available CVEs
 	// sed "s,$(printf '\033')\\[[0-9;]*[a-zA-Z],,g" | grep -i "\[CVE" -A 10 | grep -Ev "^\-\-$" | sed -${E} "s,\[CVE-[0-9]+-[0-9]+\].*,${SED_RED},g"
 	// ANSI escape code in output, reg can not match it
 	indexs := make([]int, 0)
@@ -37,7 +37,7 @@ func kernelExploitSuggester() {
 		}
 	}
 
-	// print all exploit and after 10 lines
+	// print all CVE matches and up to 10 following lines
 	for _, index := range indexs {
 		for i := index; i < index+10; i++ {
 			if i >= len(lines) {

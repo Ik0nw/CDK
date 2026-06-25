@@ -69,15 +69,15 @@ func GetProcCapabilities() bool {
 				return false
 			}
 
-			fmt.Printf("[*] Maybe you can exploit the Capabilities below:\n")
+			fmt.Printf("[*] Maybe you can leverage the Capabilities below:\n")
 			for _, c := range caps {
 				switch c {
 				case "CAP_DAC_READ_SEARCH":
-					fmt.Println("[!] CAP_DAC_READ_SEARCH enabled. You can read files from host. Use 'cdk run cap-dac-read-search' ... for exploitation.")
+					fmt.Println("[!] CAP_DAC_READ_SEARCH enabled. You can read files from host. Use 'cdk run cap-dac-boundary' ... for exploitation.")
 				case "CAP_SYS_MODULE":
 					fmt.Println("[!] CAP_SYS_MODULE enabled. You can escape the container via loading kernel module. More info at https://xcellerator.github.io/posts/docker_escape/.")
 				case "CAP_SYS_ADMIN":
-					fmt.Println("Critical - SYS_ADMIN Capability Found. Try 'cdk run rewrite-cgroup-devices/mount-cgroup/...'.")
+					fmt.Println("Critical - SYS_ADMIN Capability Found. Try 'cdk run cgroup-devices-boundary/cgroup-boundary/...'.")
 				}
 			}
 		}
