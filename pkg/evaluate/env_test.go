@@ -205,7 +205,8 @@ func TestDetectEnv_Scenarios(t *testing.T) {
 			viaKey: "InCloud",
 		}},
 		{"aws-ec2", envExpect{
-			env:    &Env{InCloud: true},
+			// fixture writes v1-style cgroup hierarchy lines (no cgroup.controllers file); uniform with volcengine
+			env:    &Env{InCloud: true, HasCgroupV1: true, HasCgroupV2: false},
 			vendor: "aws",
 		}},
 		{"cgroupv1-non-priv", envExpect{
