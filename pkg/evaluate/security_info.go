@@ -228,9 +228,14 @@ func matchConfigLine(line, key string) (string, bool) {
 }
 
 func init() {
-	RegisterSimpleCheck(CategorySecurity, "security.namespace_isolation", "Check container namespace isolation", CheckNamespaceIsolation)
-	RegisterSimpleCheck(CategorySecurity, "security.seccomp_status", "Check Seccomp status", CheckSeccompStatus)
-	RegisterSimpleCheck(CategorySecurity, "security.seccomp_support", "Check kernel Seccomp support", CheckSeccompKernelSupport)
-	RegisterSimpleCheck(CategorySecurity, "security.selinux", "Check SELinux status", CheckSELinux)
-	RegisterSimpleCheck(CategorySecurity, "security.apparmor", "Check AppArmor status and container profile", CheckAppArmor)
+	RegisterSimplePrereqCheck(CategorySecurity, "security.namespace_isolation",
+		"Check container namespace isolation", []string{"InContainer"}, CheckNamespaceIsolation)
+	RegisterSimplePrereqCheck(CategorySecurity, "security.seccomp_status",
+		"Check Seccomp status", []string{"InContainer"}, CheckSeccompStatus)
+	RegisterSimplePrereqCheck(CategorySecurity, "security.seccomp_support",
+		"Check kernel Seccomp support", []string{"InContainer"}, CheckSeccompKernelSupport)
+	RegisterSimplePrereqCheck(CategorySecurity, "security.selinux",
+		"Check SELinux status", []string{"InContainer"}, CheckSELinux)
+	RegisterSimplePrereqCheck(CategorySecurity, "security.apparmor",
+		"Check AppArmor status and container profile", []string{"InContainer"}, CheckAppArmor)
 }

@@ -102,10 +102,11 @@ func getAddCaps(currentCaps []string) []string {
 }
 
 func init() {
-	RegisterSimpleCheck(
+	RegisterSimplePrereqCheck(
 		CategoryCommands,
 		"commands.capabilities",
 		"Inspect process capabilities",
+		[]string{"InContainer"},
 		func() {
 			GetProcCapabilities()
 		},

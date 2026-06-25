@@ -56,5 +56,6 @@ func kernelExploitSuggester() {
 }
 
 func init() {
-	RegisterSimpleCheck(CategoryKernel, "kernel.exploits", "Suggest applicable kernel exploits", kernelExploitSuggester)
+	RegisterSimplePrereqCheck(CategoryKernel, "kernel.exploits",
+		"Suggest applicable kernel exploits", []string{"InContainer"}, kernelExploitSuggester)
 }

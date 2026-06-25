@@ -69,5 +69,6 @@ func MountEscape() {
 }
 
 func init() {
-	RegisterSimpleCheck(CategoryMounts, "mounts.escape", "Inspect mount escape opportunities", MountEscape)
+	RegisterSimplePrereqCheck(CategoryMounts, "mounts.escape", "Inspect mount escape opportunities",
+		[]string{"InContainer"}, MountEscape)
 }

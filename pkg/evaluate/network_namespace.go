@@ -47,5 +47,6 @@ func CheckNetNamespace() {
 }
 
 func init() {
-	RegisterSimpleCheck(CategoryNetNamespace, "network.namespace", "Inspect network namespace isolation", CheckNetNamespace)
+	RegisterSimplePrereqCheck(CategoryNetNamespace, "network.namespace", "Inspect network namespace isolation",
+		[]string{"InContainer"}, CheckNetNamespace)
 }

@@ -76,10 +76,11 @@ func CheckK8sAnonymousLogin() bool {
 }
 
 func init() {
-	RegisterSimpleCheck(
+	RegisterSimplePrereqCheck(
 		CategoryK8sAPIServer,
 		"k8s.anonymous_login",
 		"Attempt anonymous Kubernetes API login",
+		[]string{"InContainer", "HasK8sSA"},
 		func() {
 			CheckK8sAnonymousLogin()
 		},

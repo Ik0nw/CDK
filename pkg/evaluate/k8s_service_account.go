@@ -74,10 +74,11 @@ func CheckPrivilegedK8sServiceAccount(tokenPath string) bool {
 }
 
 func init() {
-	RegisterSimpleCheck(
+	RegisterSimplePrereqCheck(
 		CategoryK8sServiceAccount,
 		"k8s.privileged_service_account",
 		"Check Kubernetes service account privileges",
+		[]string{"HasK8sSA"},
 		func() {
 			CheckPrivilegedK8sServiceAccount(conf.K8sSATokenDefaultPath)
 		},

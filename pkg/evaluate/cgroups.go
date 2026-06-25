@@ -55,5 +55,6 @@ func DumpCgroup() {
 }
 
 func init() {
-	RegisterSimpleCheck(CategoryCgroups, "cgroups.dump", "Dump cgroup configuration", DumpCgroup)
+	RegisterSimplePrereqCheck(CategoryCgroups, "cgroups.dump",
+		"Dump cgroup configuration", []string{"InContainer"}, DumpCgroup)
 }
