@@ -84,7 +84,15 @@ func ParseCDKMain() bool {
 		if profileID == evaluate.ProfileBasic && Args["--full"].(bool) {
 			profileID = evaluate.ProfileExtended
 		}
-		if err := evaluate.NewEvaluator().RunProfile(profileID, nil); err != nil {
+		noGating := false
+		if raw, ok := Args["--no-gating"]; ok {
+			if b, ok2 := raw.(bool); ok2 {
+				noGating = b
+			}
+		}
+		ctx := evaluate.NewContext(nil)
+		ctx.NoGating = noGating
+		if err := evaluate.NewEvaluator().RunProfile(profileID, ctx); err != nil {
 			log.Printf("evaluate profile %q failed: %v", profileID, err)
 		}
 		return true

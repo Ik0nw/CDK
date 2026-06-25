@@ -39,9 +39,9 @@ Find tutorial, configuration and use-case in (internal documentation)
 
 var BannerContainerTpl = BannerHeader + `
 %s
-  cdk eva
-  cdk eva --full
-  cdk evaluate [--full]
+  cdk eva [--no-gating]
+  cdk eva --full [--no-gating]
+  cdk evaluate [--full] [--no-gating]
   cdk run (--list | <check> [<args>...])
   cdk <tool> [<args>...]
 
@@ -70,6 +70,7 @@ var BannerContainerTpl = BannerHeader + `
   -h --help     Show this help msg.
   -v --version  Show version.
   --profile=<name> Select evaluation profile (basic, extended, additional).
+  --no-gating   Disable preflight prereq gating (loud, runs ALL checks regardless of preflight).
 `
 
 // BannerContainer is the banner of CDK command line with colorful.
