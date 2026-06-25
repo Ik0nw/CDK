@@ -1,6 +1,7 @@
 package evaluate
 
 import (
+	"bytes"
 	"fmt"
 	"log"
 	"os"
@@ -26,6 +27,12 @@ type Context struct {
 
 	// NoGating disables prereq-based skipping (the --no-gating CLI flag).
 	NoGating bool
+
+	// JSON enables structured JSON report output instead of the default
+	// human-readable stdout/stderr stream.  The framework still prints
+	// findings in real time (to original stdout/stderr); a single JSON
+	// object is emitted at the end to stdout.
+	JSON bool
 
 	// Skipped accumulates skip reasons during the profile run.  Read via
 	// printSkipSummary once profile finishes.
@@ -81,11 +88,30 @@ type Category struct {
 	Checks []Check
 }
 
-func (c Category) run(ctx *Context) {
-	util.PrintH2(c.Title)
+func (c Category) run(ctx *Context, jc *jsonCollector, catOut *JSONCategory) {
+	var headingOut string
+	if jc != nil {
+		// In JSON mode the heading text becomes catOut.Output and must
+		// not leak before the JSON envelope.  Capture heading exactly
+		// like per-check output.
+		hBuf := jc.startCapture()
+		util.PrintH2(c.Title)
+		headingOut = jc.stopCapture(hBuf)
+	} else {
+		util.PrintH2(c.Title)
+	}
+	if catOut != nil {
+		catOut.Output = headingOut
+	}
 	logger := loggerFromContext(ctx)
 	for _, check := range c.Checks {
 		label := readableCheckLabel(check)
+		jsonCheck := JSONCheck{
+			ID:          check.ID,
+			Title:       check.Title,
+			Description: check.Description,
+			Prereqs:     append([]string(nil), check.Prereqs...),
+		}
 		if !ctx.NoGating {
 			missing := MissingPrereqs(ctx.Env, check.Prereqs)
 			if len(missing) > 0 {
@@ -93,7 +119,6 @@ func (c Category) run(ctx *Context) {
 					CheckID: check.ID,
 					Missing: missing,
 				})
-				// Log "unknown prereq" entries distinctly.
 				for _, m := range missing {
 					if strings.HasSuffix(m, "?") {
 						logger.Printf("WARNING: check %s has unknown prereq %q; skipping",
@@ -101,13 +126,37 @@ func (c Category) run(ctx *Context) {
 					}
 				}
 				logger.Printf("skip %s: prereqs not met: %v", label, missing)
+				jsonCheck.Skipped = &JSONSkipped{MissingPrereqs: missing}
+				if catOut != nil {
+					catOut.Checks = append(catOut.Checks, jsonCheck)
+				}
 				continue
 			}
 		}
+
+		var (
+			runBuf *bytes.Buffer
+			outStr string
+		)
+		if jc != nil {
+			runBuf = jc.startCapture()
+		}
+		var runErr error
 		if err := check.execute(ctx); err != nil {
 			logger.Printf("check %s failed: %v", label, err)
+			runErr = err
 		}
 		ctx.ran++
+		if jc != nil {
+			outStr = jc.stopCapture(runBuf)
+		}
+		jsonCheck.Ran = &JSONRan{Output: outStr}
+		if runErr != nil {
+			jsonCheck.Ran.Error = runErr.Error()
+		}
+		if catOut != nil {
+			catOut.Checks = append(catOut.Checks, jsonCheck)
+		}
 	}
 }
 
@@ -118,9 +167,13 @@ type Profile struct {
 	Categories []Category
 }
 
-func (p Profile) run(ctx *Context) {
+func (p Profile) run(ctx *Context, jc *jsonCollector) {
 	for _, category := range p.Categories {
-		category.run(ctx)
+		var catOut *JSONCategory
+		if jc != nil {
+			catOut = jc.addCategory(category.ID, category.Title, "")
+		}
+		category.run(ctx, jc, catOut)
 	}
 }
 
@@ -178,8 +231,28 @@ func (e *Evaluator) RunProfile(id string, ctx *Context) error {
 	if ctx.Env == nil {
 		ctx.Env = DetectEnv()
 	}
-	profile.run(ctx)
-	printSkipSummary(ctx)
+
+	var jc *jsonCollector
+	if ctx.JSON {
+		jc = beginJSON(profile.ID, profile.Title, ctx.Env)
+	}
+
+	profile.run(ctx, jc)
+
+	if jc != nil {
+		// When JSON is on, printSkipSummary is absorbed into the JSON
+		// envelope (report.Ran / report.Skipped / report.Summary); no
+		// need for a separate text line.
+		blob, err := jc.finalize(ctx.ran, ctx.Skipped)
+		if err != nil {
+			return err
+		}
+		// Emit the JSON object as the only structured output to stdout.
+		// Keep trailing newline so operators piping to `jq` are happy.
+		fmt.Fprintf(os.Stdout, "%s\n", blob)
+	} else {
+		printSkipSummary(ctx)
+	}
 	return nil
 }
 

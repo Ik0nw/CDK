@@ -42,9 +42,9 @@ Find tutorial, configuration and use-case in (internal documentation)
 
 var BannerContainerTpl = BannerHeader + `
 %s
-  cdk eva [--no-gating]
-  cdk eva [--full] [--no-gating]
-  cdk evaluate [--full] [--no-gating]
+  cdk eva [--no-gating] [--json]
+  cdk eva [--full] [--no-gating] [--json]
+  cdk evaluate [--full] [--no-gating] [--json]
   cdk run (--list | <check> [<args>...])
   cdk <tool> [<args>...]
 
@@ -52,6 +52,7 @@ var BannerContainerTpl = BannerHeader + `
   cdk evaluate                              Gather isolation posture and identify audit findings inside container.
   cdk eva                                   Alias of "cdk evaluate".
   cdk evaluate --full                       Enable file scan during information gathering.
+  cdk evaluate --json                       Emit structured JSON report instead of human-readable output.
 
 
 %s
@@ -74,6 +75,7 @@ var BannerContainerTpl = BannerHeader + `
   -v --version  Show version.
   --profile=<name> Select evaluation profile (basic, extended, additional).
   --no-gating   Disable preflight prereq gating (loud, runs ALL checks regardless of preflight).
+  --json        Emit a single structured JSON report to stdout (v1 schema).
 `
 
 // BannerContainer is the banner of CDK command line with colorful.

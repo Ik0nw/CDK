@@ -2,7 +2,10 @@ package evaluate
 
 import (
 	"bytes"
+	"encoding/json"
+	"io"
 	"log"
+	"os"
 	"strings"
 	"testing"
 )
@@ -139,5 +142,115 @@ func TestEngine_UnknownPrereqFailClosed(t *testing.T) {
 	if !strings.Contains(buf.String(), "WARNING") ||
 		!strings.Contains(buf.String(), "WeirdMagicFlag") {
 		t.Errorf("logger should warn about unknown prereq. got log: %q", buf.String())
+	}
+}
+
+// captureStdout returns all bytes written to os.Stdout during fn().
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+	orig := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe: %v", err)
+	}
+	os.Stdout = w
+	defer func() { os.Stdout = orig }()
+
+	done := make(chan string, 1)
+	go func() {
+		b, _ := io.ReadAll(r)
+		done <- string(b)
+	}()
+	fn()
+	_ = w.Close()
+	return <-done
+}
+
+func TestEngine_JSONOutput(t *testing.T) {
+	ran := map[string]int{}
+	mkCheck := func(id string, prereqs []string, errOut error) Check {
+		return Check{
+			ID:          id,
+			Title:       "check " + id,
+			Description: "desc-" + id,
+			Prereqs:     prereqs,
+			Run: func(c *Context) error {
+				ran[id]++
+				log.Printf("check %s printed something", id)
+				return errOut
+			},
+		}
+	}
+	cat := Category{
+		ID:    "demo",
+		Title: "Demo Category",
+		Checks: []Check{
+			mkCheck("ok", []string{"InContainer"}, nil),
+			mkCheck("skip", []string{"Privileged"}, nil),
+		},
+	}
+	profile := Profile{ID: "test_json", Title: "TJ", Categories: []Category{cat}}
+	ev := &Evaluator{profiles: map[string]Profile{"test_json": profile}}
+
+	ctx, _ := newTestContext()
+	ctx.JSON = true
+	ctx.Env = &Env{InContainer: true}
+
+	raw := captureStdout(t, func() {
+		if err := ev.RunProfile("test_json", ctx); err != nil {
+			t.Fatalf("RunProfile JSON: %v", err)
+		}
+	})
+
+	var rep JSONReport
+	if err := json.Unmarshal([]byte(raw), &rep); err != nil {
+		t.Fatalf("output is not valid JSON: %v\noutput=%q", err, raw)
+	}
+	if rep.Version != 1 || rep.Tool != "cdk" {
+		t.Errorf("envelope metadata: %+v", rep)
+	}
+	if rep.Profile.ID != "test_json" {
+		t.Errorf("profile id = %q", rep.Profile.ID)
+	}
+	if rep.Ran != 1 || rep.Skipped != 1 {
+		t.Errorf("ran/skipped counts = %d/%d want 1/1", rep.Ran, rep.Skipped)
+	}
+	if rep.Env == nil || !rep.Env.InContainer {
+		t.Errorf("env not propagated: %+v", rep.Env)
+	}
+	if len(rep.Categories) != 1 {
+		t.Fatalf("categories count = %d want 1", len(rep.Categories))
+	}
+	if rep.Categories[0].ID != "demo" {
+		t.Errorf("cat id = %q", rep.Categories[0].ID)
+	}
+	checks := rep.Categories[0].Checks
+	if len(checks) != 2 {
+		t.Fatalf("checks count = %d want 2", len(checks))
+	}
+	for _, c := range checks {
+		switch c.ID {
+		case "ok":
+			if c.Ran == nil || c.Skipped != nil {
+				t.Errorf("check ok: expected ran=true got %+v", c)
+			} else if !strings.Contains(c.Ran.Output, "check ok printed something") {
+				t.Errorf("check ok output missing capture: %q", c.Ran.Output)
+			}
+		case "skip":
+			if c.Skipped == nil || c.Ran != nil {
+				t.Errorf("check skip: expected skipped=true got %+v", c)
+			} else if len(c.Skipped.MissingPrereqs) != 1 ||
+				c.Skipped.MissingPrereqs[0] != "Privileged" {
+				t.Errorf("check skip missing_prereqs = %v", c.Skipped.MissingPrereqs)
+			}
+		default:
+			t.Errorf("unexpected check id %q", c.ID)
+		}
+	}
+	if rep.Summary["Privileged"] != 1 {
+		t.Errorf("summary tally: %+v want Privileged=1", rep.Summary)
+	}
+	if ran["ok"] != 1 || ran["skip"] != 0 {
+		t.Errorf("side-effect counters wrong: %+v", ran)
 	}
 }
