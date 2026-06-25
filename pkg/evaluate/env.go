@@ -140,8 +140,7 @@ func detectInContainer(env *Env) {
 		return
 	}
 	// sched format: "comm (pid, #threads: N)\nrest"
-	re := regexp.MustCompile(`^[^(]+\((\d+),`)
-	m := re.FindStringSubmatch(line)
+	m := schedPIDRe.FindStringSubmatch(line)
 	if len(m) >= 2 {
 		pid, err := strconv.Atoi(m[1])
 		if err == nil && pid != 1 {
@@ -173,7 +172,10 @@ func detectHasDockerSock(env *Env) {
 	}
 }
 
-var containerdShimAbstractRe = regexp.MustCompile(`@/containerd-shim/[^ ]+shim\.sock`)
+var (
+	schedPIDRe               = regexp.MustCompile(`^[^(]+\((\d+),`)
+	containerdShimAbstractRe = regexp.MustCompile(`@/containerd-shim/[^ ]+shim\.sock`)
+)
 
 func detectHasContainerdSock(env *Env) {
 	// 1. Plain socket: /run/containerd/containerd.sock
@@ -254,7 +256,7 @@ type vendorRule struct {
 // Vendor rules are checked in ORDER: Volcengine must beat generic ECS
 // heuristics used by Aliyun/AWS.
 func detectInCloud(env *Env) {
-	files := vendorFiles(envRoot)
+	files := vendorFiles()
 	rules := []vendorRule{
 		{"volcengine/byteplus", func(f map[string]string) bool {
 			sv := strings.ToLower(f["sys_vendor"])
@@ -333,7 +335,7 @@ func detectInCloud(env *Env) {
 // NOTE: the root parameter is accepted for API consistency but paths are
 // resolved by readFileFirstLine which already prepends the package-level
 // envRoot internally.
-func vendorFiles(root string) map[string]string {
+func vendorFiles() map[string]string {
 	r := map[string]string{}
 	m := map[string]string{
 		"sys_vendor":        "sys/class/dmi/id/sys_vendor",
