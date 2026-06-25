@@ -11,6 +11,14 @@ import (
 	"strings"
 )
 
+// UIDMapEntry describes one line of /proc/self/uid_map or
+// /proc/self/gid_map.
+type UIDMapEntry struct {
+	InsideID  uint32 `json:"inside_id"`
+	OutsideID uint32 `json:"outside_id"`
+	Length    uint32 `json:"length"`
+}
+
 // Env holds the results of a single local-only environment preflight pass.
 // Every field defaults to false; DetectEnv only flips flags when it finds
 // positive local evidence.  File read failures never panic — they just
@@ -26,15 +34,29 @@ type Env struct {
 	HasCgroupV2       bool
 	Privileged        bool
 
+	// User- / mount-namespace enumeration.
+	//
+	// HasUserNamespace is true when /proc/self/uid_map shows any non-identity
+	// ID mapping (i.e. we are inside a user namespace).
+	HasUserNamespace bool `json:"has_user_namespace"`
+	// HostRootMapping is true when ID 0 inside maps to ID 0 outside with
+	// length >= 1.  This is the only mapping under which namespaced "root"
+	// capability bits actually correspond to host-level root privilege.
+	// If false and HasUserNamespace is true, capability bits in CapEff are
+	// "namespaced" and are useless for host-level actions.
+	HostRootMapping bool          `json:"host_root_mapping"`
+	UIDMap          []UIDMapEntry `json:"uid_map"`
+	GIDMap          []UIDMapEntry `json:"gid_map"`
+
 	// CloudVendor is non-empty only when InCloud=true and a specific vendor
 	// was identified.  Values: "aws" | "gcp" | "azure" | "aliyun" | "tencent"
 	// | "huawei" | "volcengine/byteplus".
-	CloudVendor string
+	CloudVendor string `json:"cloud_vendor"`
 
 	// DetectedVia records, for each flag that was flipped true, a short
 	// human-readable note describing which piece of evidence triggered it.
 	// Keyed by the same camelCase flag names used by Prereqs.
-	DetectedVia map[string]string
+	DetectedVia map[string]string `json:"detected_via"`
 }
 
 // flagByName maps Prereq strings (as written in Check.Prereqs) to predicates
@@ -50,6 +72,8 @@ var flagByName = map[string]func(*Env) bool{
 	"HasCgroupV1":       func(e *Env) bool { return e.HasCgroupV1 },
 	"HasCgroupV2":       func(e *Env) bool { return e.HasCgroupV2 },
 	"Privileged":        func(e *Env) bool { return e.Privileged },
+	"HasUserNamespace":  func(e *Env) bool { return e.HasUserNamespace },
+	"HostRootMapping":   func(e *Env) bool { return e.HostRootMapping },
 }
 
 // envRoot is the filesystem root used by all detection helpers.  It
@@ -65,6 +89,7 @@ func DetectEnv() *Env {
 	env := &Env{DetectedVia: make(map[string]string)}
 	// Detection order is significant: cheaper / more definitive flags first.
 	detectInContainer(env)
+	detectIDMappings(env) // UID/GID map — must run BEFORE detectPrivileged
 	detectHasDockerSock(env)
 	detectHasContainerdSock(env)
 	detectHasK8sSA(env)
@@ -147,6 +172,63 @@ func detectInContainer(env *Env) {
 			env.InContainer = true
 			fmtVia(env, "InContainer", "/proc/1/sched host pid=%d != 1", pid)
 		}
+	}
+}
+
+// parseIDMap parses a single uid_map/gid_map text file.  Format:
+//
+//	<inside_id> <outside_id> <length>
+//
+// Empty file, missing file, or parse errors → nil.
+func parseIDMap(path string) []UIDMapEntry {
+	lines := readFileLines(path)
+	if len(lines) == 0 {
+		return nil
+	}
+	var out []UIDMapEntry
+	for _, l := range lines {
+		fields := strings.Fields(l)
+		if len(fields) != 3 {
+			continue
+		}
+		a, e1 := strconv.ParseUint(fields[0], 10, 32)
+		b, e2 := strconv.ParseUint(fields[1], 10, 32)
+		c, e3 := strconv.ParseUint(fields[2], 10, 32)
+		if e1 != nil || e2 != nil || e3 != nil {
+			continue
+		}
+		out = append(out, UIDMapEntry{InsideID: uint32(a), OutsideID: uint32(b), Length: uint32(c)})
+	}
+	return out
+}
+
+// detectIDMappings reads /proc/self/{uid,gid}_map and derives
+// HasUserNamespace and HostRootMapping.  Runs BEFORE detectPrivileged
+// because the latter must NOT flag namespaced-caps containers as
+// Privileged (F1+F24).
+func detectIDMappings(env *Env) {
+	env.UIDMap = parseIDMap("proc/self/uid_map")
+	env.GIDMap = parseIDMap("proc/self/gid_map")
+	// A non-user-namespaced process (host or regular container) still has
+	// uid_map content "0 0 4294967295".  We flag HasUserNamespace only on
+	// any non-identity mapping (inside != outside for at least one line).
+	identity := true
+	hostRoot := false
+	for _, e := range env.UIDMap {
+		if e.InsideID == 0 && e.OutsideID == 0 && e.Length >= 1 {
+			hostRoot = true
+		}
+		if e.InsideID != e.OutsideID {
+			identity = false
+		}
+	}
+	if len(env.UIDMap) > 0 && !identity {
+		env.HasUserNamespace = true
+		setVia(env, "HasUserNamespace", "uid_map contains non-identity mapping")
+	}
+	env.HostRootMapping = hostRoot
+	if hostRoot {
+		setVia(env, "HostRootMapping", "uid_map 0→0 (length >= 1)")
 	}
 }
 
@@ -394,9 +476,16 @@ func detectPrivileged(env *Env) {
 	if capEff != "" {
 		v, err := strconv.ParseUint(capEff, 16, 64)
 		if err == nil && (v&allCapBits) == allCapBits {
-			env.Privileged = true
-			fmtVia(env, "Privileged", "CapEff=%s (all 40 bits set)", capEff)
-			return
+			// F24: reject namespaced capabilities.  A container can show CapEff full
+			// while inside a user namespace with sub-UID mapping; those bits
+			// cannot drive host-level actions (mount, LSM override, etc.)
+			if env.HasUserNamespace && !env.HostRootMapping {
+				fmtVia(env, "Privileged", "CapEff=%s FULL BUT namespaced (uid_map non-identity); not flagged privileged", capEff)
+			} else {
+				env.Privileged = true
+				fmtVia(env, "Privileged", "CapEff=%s (all 40 bits set)", capEff)
+				return
+			}
 		}
 	}
 	// Fallback: Seccomp==0 means no seccomp filter applied — highly

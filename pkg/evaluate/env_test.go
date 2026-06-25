@@ -134,6 +134,31 @@ func buildFixture(t *testing.T, scenario string) string {
 
 	default:
 		t.Fatalf("unknown scenario %q", scenario)
+
+	case "userns-namespaced-caps":
+		// F1+F24: inside a user namespace with sub-UID mapping
+		// (0 inside → 100000 outside, 65536 entries).  CapEff reports
+		// full inside the ns but those bits are namespaced → MUST NOT
+		// set Privileged=true.  Seccomp=2 avoids the seccomp fallback.
+		write(".dockerenv", "")
+		write("proc/1/cgroup", "0::/docker/userns-abc\n")
+		write("proc/self/cgroup", "0::/docker/userns-abc\n")
+		write("proc/self/status", capEffLine("0000003fffffffff")+"Seccomp:\t2\n")
+		write("proc/self/uid_map", "         0     100000      65536\n")
+		write("proc/self/gid_map", "         0     100000      65536\n")
+		write("sys/fs/cgroup/cgroup.controllers", "cpu io memory pids\n")
+
+	case "userns-hostroot-identity":
+		// F1: non-user-namespaced processes have uid_map "0 0 4294967295".
+		// HasUserNamespace must be false; HostRootMapping true; full
+		// CapEff ⇒ Privileged (real host-level caps).
+		write(".dockerenv", "")
+		write("proc/1/cgroup", "0::/docker/idns-xyz\n")
+		write("proc/self/cgroup", "0::/docker/idns-xyz\n")
+		write("proc/self/status", capEffLine("0000003fffffffff")+"Seccomp:\t2\n")
+		write("proc/self/uid_map", "         0          0 4294967295\n")
+		write("proc/self/gid_map", "         0          0 4294967295\n")
+		write("sys/fs/cgroup/cgroup.controllers", "cpu io memory pids\n")
 	}
 	return dir
 }
@@ -222,6 +247,20 @@ func TestDetectEnv_Scenarios(t *testing.T) {
 			},
 			viaKey: "Privileged",
 		}},
+		{"userns-namespaced-caps", envExpect{
+			env: &Env{
+				InContainer: true, HasCgroupV1: false, HasCgroupV2: true,
+				HasUserNamespace: true, HostRootMapping: false, Privileged: false,
+			},
+			viaKey: "HasUserNamespace",
+		}},
+		{"userns-hostroot-identity", envExpect{
+			env: &Env{
+				InContainer: true, HasCgroupV1: false, HasCgroupV2: true,
+				HasUserNamespace: false, HostRootMapping: true, Privileged: true,
+			},
+			viaKey: "Privileged",
+		}},
 	}
 
 	for _, c := range cases {
@@ -251,6 +290,8 @@ func TestDetectEnv_Scenarios(t *testing.T) {
 					{"HasCgroupV1", c.expect.env.HasCgroupV1, got.HasCgroupV1},
 					{"HasCgroupV2", c.expect.env.HasCgroupV2, got.HasCgroupV2},
 					{"Privileged", c.expect.env.Privileged, got.Privileged},
+					{"HasUserNamespace", c.expect.env.HasUserNamespace, got.HasUserNamespace},
+					{"HostRootMapping", c.expect.env.HostRootMapping, got.HostRootMapping},
 				}
 				for _, c2 := range checks {
 					if c2.want != c2.gotF {
