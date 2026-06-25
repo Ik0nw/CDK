@@ -20,6 +20,9 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/cdk-team/CDK/pkg/util"
 	"github.com/docopt/docopt-go"
@@ -106,4 +109,19 @@ func parseDocopt() {
 		log.Fatalln("docopt err: ", err)
 	}
 	Args = args
+
+	// Red-team attribution banner. Printed to stdout immediately after
+	// successful CLI parse so blue-team SIEM / honeypot-side logs
+	// unambiguously identify this as a sanctioned red-team exercise
+	// (not a real incident), regardless of which subcommand runs.
+	{
+		argv := append([]string{filepath.Base(os.Args[0])}, os.Args[1:]...)
+		ts := time.Now().Format("2006-01-02 15:04:05 -0700")
+		fmt.Printf("\n%s\n[==Row Data red team Exercise== @xing chen | %s | %s]\n%s\n\n",
+			strings.Repeat("=", 60),
+			ts,
+			strings.Join(argv, " "),
+			strings.Repeat("=", 60),
+		)
+	}
 }
