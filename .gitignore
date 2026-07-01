@@ -28,6 +28,8 @@ cmd/cdk/cdk
 
 /*.json
 /cmd/cdk/*.json
+/test/docker-matrix/.env
+/test/docker-matrix/out/
 
 .vscode/
 .chglog/
