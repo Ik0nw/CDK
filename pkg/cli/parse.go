@@ -121,7 +121,7 @@ func ParseCDKMain() bool {
 			plugin.ListAllChecks()
 			return true
 		}
-		plugin.RunSingleCheck(name)
+		plugin.RunSingleCheck(name, Args["<args>"].([]string))
 		return true
 	}
 

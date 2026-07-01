@@ -48,5 +48,6 @@ func (p serviceProbeS) Run() bool {
 func init() {
 	exploit := serviceProbeS{}
 	exploit.ExploitType = "discovery"
+	exploit.ActivePrereqs = []string{"InContainer"}
 	plugin.RegisterExploit("service-probe", exploit)
 }

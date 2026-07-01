@@ -194,5 +194,6 @@ func (exp ExploitUnprivUserNS) Run() bool {
 func init() {
 	exploit := ExploitUnprivUserNS{}
 	exploit.ExploitType = "escaping"
+	exploit.ActivePrereqs = []string{"InContainer", "HasCgroupV1", "HasUnprivUserNS"}
 	plugin.RegisterExploit("unpriv-userns-boundary", exploit)
 }

@@ -27,8 +27,8 @@ import (
 	"os/exec"
 	"regexp"
 
-	"github.com/cdk-team/CDK/pkg/cli"
 	"github.com/cdk-team/CDK/pkg/audit/base"
+	"github.com/cdk-team/CDK/pkg/cli"
 	"github.com/cdk-team/CDK/pkg/plugin"
 	"github.com/cdk-team/CDK/pkg/util"
 )
@@ -167,5 +167,6 @@ func helpMsg() {
 func init() {
 	exploit := mountProcfsExpS{}
 	exploit.ExploitType = "escaping"
+	exploit.ActivePrereqs = []string{"InContainer"}
 	plugin.RegisterExploit("procfs-boundary", exploit)
 }

@@ -133,5 +133,6 @@ func (p K8sGetSATokenViaCreatePodS) Run() bool {
 func init() {
 	exploit := K8sGetSATokenViaCreatePodS{}
 	exploit.ExploitType = "privilege-escalation"
+	exploit.ActivePrereqs = []string{"HasK8sAPI"}
 	plugin.RegisterExploit("k8s-sa-token-sweep", exploit)
 }

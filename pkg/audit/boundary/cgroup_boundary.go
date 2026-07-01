@@ -246,5 +246,6 @@ func (p ExploitCgroupS) Run() bool {
 func init() {
 	exploit := ExploitCgroupS{}
 	exploit.ExploitType = "escaping"
+	exploit.ActivePrereqs = []string{"InContainer", "HasCgroupV1", "HasCapSysAdmin"}
 	plugin.RegisterExploit("cgroup-boundary", exploit)
 }

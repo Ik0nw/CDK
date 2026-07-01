@@ -24,15 +24,25 @@ type UIDMapEntry struct {
 // positive local evidence.  File read failures never panic — they just
 // leave the corresponding flag false.
 type Env struct {
-	InContainer       bool
-	HasDockerSock     bool
-	HasContainerdSock bool
-	HasK8sSA          bool
-	InClusterDNS      bool
-	InCloud           bool
-	HasCgroupV1       bool
-	HasCgroupV2       bool
-	Privileged        bool
+	InContainer         bool
+	HasDockerSock       bool
+	HasContainerdSock   bool
+	HasK8sAPI           bool
+	HasK8sSA            bool
+	InClusterDNS        bool
+	InCloud             bool
+	HasCgroupV1         bool
+	HasCgroupV2         bool
+	HasLXCFS            bool
+	HasUnprivUserNS     bool
+	HasIstioSidecar     bool
+	Privileged          bool
+	HasCapDacReadSearch bool
+	HasCapSysAdmin      bool
+	HasCapSysPtrace     bool
+	HasCapMknod         bool
+	HasCapBpf           bool
+	HasCapPerfmon       bool
 
 	// User- / mount-namespace enumeration.
 	//
@@ -63,17 +73,27 @@ type Env struct {
 // over *Env.  Unknown names in MissingPrereqs are treated as "missing"
 // (fail-closed).
 var flagByName = map[string]func(*Env) bool{
-	"InContainer":       func(e *Env) bool { return e.InContainer },
-	"HasDockerSock":     func(e *Env) bool { return e.HasDockerSock },
-	"HasContainerdSock": func(e *Env) bool { return e.HasContainerdSock },
-	"HasK8sSA":          func(e *Env) bool { return e.HasK8sSA },
-	"InClusterDNS":      func(e *Env) bool { return e.InClusterDNS },
-	"InCloud":           func(e *Env) bool { return e.InCloud },
-	"HasCgroupV1":       func(e *Env) bool { return e.HasCgroupV1 },
-	"HasCgroupV2":       func(e *Env) bool { return e.HasCgroupV2 },
-	"Privileged":        func(e *Env) bool { return e.Privileged },
-	"HasUserNamespace":  func(e *Env) bool { return e.HasUserNamespace },
-	"HostRootMapping":   func(e *Env) bool { return e.HostRootMapping },
+	"InContainer":         func(e *Env) bool { return e.InContainer },
+	"HasDockerSock":       func(e *Env) bool { return e.HasDockerSock },
+	"HasContainerdSock":   func(e *Env) bool { return e.HasContainerdSock },
+	"HasK8sAPI":           func(e *Env) bool { return e.HasK8sAPI },
+	"HasK8sSA":            func(e *Env) bool { return e.HasK8sSA },
+	"InClusterDNS":        func(e *Env) bool { return e.InClusterDNS },
+	"InCloud":             func(e *Env) bool { return e.InCloud },
+	"HasCgroupV1":         func(e *Env) bool { return e.HasCgroupV1 },
+	"HasCgroupV2":         func(e *Env) bool { return e.HasCgroupV2 },
+	"HasLXCFS":            func(e *Env) bool { return e.HasLXCFS },
+	"HasUnprivUserNS":     func(e *Env) bool { return e.HasUnprivUserNS },
+	"HasIstioSidecar":     func(e *Env) bool { return e.HasIstioSidecar },
+	"Privileged":          func(e *Env) bool { return e.Privileged },
+	"HasCapDacReadSearch": func(e *Env) bool { return e.HasCapDacReadSearch },
+	"HasCapSysAdmin":      func(e *Env) bool { return e.HasCapSysAdmin },
+	"HasCapSysPtrace":     func(e *Env) bool { return e.HasCapSysPtrace },
+	"HasCapMknod":         func(e *Env) bool { return e.HasCapMknod },
+	"HasCapBpf":           func(e *Env) bool { return e.HasCapBpf },
+	"HasCapPerfmon":       func(e *Env) bool { return e.HasCapPerfmon },
+	"HasUserNamespace":    func(e *Env) bool { return e.HasUserNamespace },
+	"HostRootMapping":     func(e *Env) bool { return e.HostRootMapping },
 }
 
 // envRoot is the filesystem root used by all detection helpers.  It
@@ -92,10 +112,14 @@ func DetectEnv() *Env {
 	detectIDMappings(env) // UID/GID map — must run BEFORE detectPrivileged
 	detectHasDockerSock(env)
 	detectHasContainerdSock(env)
+	detectHasK8sAPI(env)
 	detectHasK8sSA(env)
 	detectInClusterDNS(env)
 	detectInCloud(env) // sets both InCloud and CloudVendor
+	detectMountSignals(env)
 	detectCgroupVersions(env)
+	detectUnprivUserNS(env)
+	detectIstioSidecar(env)
 	detectPrivileged(env)
 	return env
 }
@@ -277,6 +301,15 @@ func detectHasContainerdSock(env *Env) {
 	}
 }
 
+func detectHasK8sAPI(env *Env) {
+	host := os.Getenv("KUBERNETES_SERVICE_HOST")
+	port := os.Getenv("KUBERNETES_SERVICE_PORT")
+	if host != "" && port != "" {
+		env.HasK8sAPI = true
+		fmtVia(env, "HasK8sAPI", "KUBERNETES_SERVICE_HOST=%s KUBERNETES_SERVICE_PORT=%s", host, port)
+	}
+}
+
 func detectHasK8sSA(env *Env) {
 	tokenPath := filepath.Join(envRoot,
 		"var/run/secrets/kubernetes.io/serviceaccount/token")
@@ -284,6 +317,30 @@ func detectHasK8sSA(env *Env) {
 	if err == nil && fi.Size() > 0 {
 		env.HasK8sSA = true
 		fmtVia(env, "HasK8sSA", "SA token exists (%d bytes)", fi.Size())
+	}
+}
+
+func detectMountSignals(env *Env) {
+	for _, line := range readFileLines("proc/self/mountinfo") {
+		parts := strings.Split(line, " - ")
+		if len(parts) != 2 {
+			continue
+		}
+		left := strings.Fields(parts[0])
+		right := strings.Fields(parts[1])
+		if len(left) < 6 || len(right) < 2 {
+			continue
+		}
+		mountPoint := left[4]
+		opts := strings.Split(left[5], ",")
+		fstype := right[0]
+		device := right[1]
+		if device == "lxcfs" || strings.Contains(fstype, "lxcfs") || strings.Contains(mountPoint, "lxcfs") {
+			env.HasLXCFS = true
+			fmtVia(env, "HasLXCFS", "mountpoint %s fstype=%s device=%s opts=%s",
+				mountPoint, fstype, device, strings.Join(opts, ","))
+			return
+		}
 	}
 }
 
@@ -458,10 +515,48 @@ func detectCgroupVersions(env *Env) {
 	}
 }
 
-// allCaps is CapEff = 0000003fffffffff (40 capability bits, Linux 6.4+).
-// The legacy 38-bit full mask 0000003fffffffff also matches; we simply
-// parse numerically and check that the low 40 bits are all 1.
-const allCapBits uint64 = 0x0000003fffffffff
+func detectUnprivUserNS(env *Env) {
+	if strings.TrimSpace(readFileFirstLine("proc/sys/kernel/unprivileged_userns_clone")) == "1" {
+		env.HasUnprivUserNS = true
+		setVia(env, "HasUnprivUserNS", "kernel.unprivileged_userns_clone=1")
+		return
+	}
+	if v, err := strconv.Atoi(strings.TrimSpace(readFileFirstLine("proc/sys/user/max_user_namespaces"))); err == nil && v > 0 {
+		env.HasUnprivUserNS = true
+		fmtVia(env, "HasUnprivUserNS", "user.max_user_namespaces=%d", v)
+	}
+}
+
+func detectIstioSidecar(env *Env) {
+	for _, kv := range os.Environ() {
+		if strings.HasPrefix(kv, "ISTIO_META_") ||
+			strings.HasPrefix(kv, "ISTIO_VERSION=") ||
+			strings.HasPrefix(kv, "ENVOY_") {
+			env.HasIstioSidecar = true
+			setVia(env, "HasIstioSidecar", "Istio/Envoy environment marker present")
+			return
+		}
+	}
+	for _, p := range []string{
+		"etc/istio/proxy",
+		"var/run/secrets/istio",
+		"var/lib/istio/envoy",
+	} {
+		if fileExists(p) {
+			env.HasIstioSidecar = true
+			fmtVia(env, "HasIstioSidecar", "/%s exists", p)
+			return
+		}
+	}
+}
+
+// allCaps is CapEff = 000000ffffffffff (40 capability bits, Linux 6.4+).
+// The legacy 38-bit full mask 0000003fffffffff also matches because older
+// kernels lack CAP_PERFMON/CAP_BPF.
+const (
+	allCapBits       uint64 = 0x000000ffffffffff
+	legacyAllCapBits uint64 = 0x0000003fffffffff
+)
 
 func detectPrivileged(env *Env) {
 	var capEff string
@@ -475,7 +570,10 @@ func detectPrivileged(env *Env) {
 	}
 	if capEff != "" {
 		v, err := strconv.ParseUint(capEff, 16, 64)
-		if err == nil && (v&allCapBits) == allCapBits {
+		if err == nil {
+			recordCapabilityFlags(env, v, capEff)
+		}
+		if err == nil && ((v&allCapBits) == allCapBits || (v&legacyAllCapBits) == legacyAllCapBits) {
 			// F24: reject namespaced capabilities.  A container can show CapEff full
 			// while inside a user namespace with sub-UID mapping; those bits
 			// cannot drive host-level actions (mount, LSM override, etc.)
@@ -498,6 +596,37 @@ func detectPrivileged(env *Env) {
 			setVia(env, "Privileged", "Seccomp: 0 within container")
 		}
 	}
+}
+
+const (
+	capDacReadSearch = 2
+	capSysPtrace     = 19
+	capSysAdmin      = 21
+	capMknod         = 27
+	capPerfmon       = 38
+	capBpf           = 39
+)
+
+func recordCapabilityFlags(env *Env, capMask uint64, raw string) {
+	// In a non-host-root user namespace, capability bits are useful for local
+	// introspection but not for host-level active validation, so keep active
+	// prereq flags false.
+	if env.HasUserNamespace && !env.HostRootMapping {
+		return
+	}
+	setCap := func(bit uint, flag, name string, dst *bool) {
+		if capMask&(uint64(1)<<bit) == 0 {
+			return
+		}
+		*dst = true
+		fmtVia(env, flag, "%s present in CapEff=%s", name, raw)
+	}
+	setCap(capDacReadSearch, "HasCapDacReadSearch", "CAP_DAC_READ_SEARCH", &env.HasCapDacReadSearch)
+	setCap(capSysAdmin, "HasCapSysAdmin", "CAP_SYS_ADMIN", &env.HasCapSysAdmin)
+	setCap(capSysPtrace, "HasCapSysPtrace", "CAP_SYS_PTRACE", &env.HasCapSysPtrace)
+	setCap(capMknod, "HasCapMknod", "CAP_MKNOD", &env.HasCapMknod)
+	setCap(capBpf, "HasCapBpf", "CAP_BPF", &env.HasCapBpf)
+	setCap(capPerfmon, "HasCapPerfmon", "CAP_PERFMON", &env.HasCapPerfmon)
 }
 
 // ---------- shared file-read helpers ----------

@@ -18,9 +18,13 @@ package plugin
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"sort"
+	"strings"
 	"text/tabwriter"
+
+	"github.com/cdk-team/CDK/pkg/evaluate"
 )
 
 type ExploitInterface interface {
@@ -32,6 +36,10 @@ type ExploitInterface interface {
 type TaskInterface interface {
 	Exec() bool
 	Desc() string
+}
+
+type PreflightInterface interface {
+	PreflightPrereqs(args []string) []string
 }
 
 var Checks map[string]ExploitInterface
@@ -72,8 +80,26 @@ func ListAllChecks() {
 	writer.Flush()
 }
 
-func RunSingleCheck(name string) {
-	Checks[name].Run()
+func RunSingleCheck(name string, args []string) bool {
+	check := Checks[name]
+	if pf, ok := check.(PreflightInterface); ok {
+		prereqs := pf.PreflightPrereqs(args)
+		if len(prereqs) > 0 {
+			env := evaluate.DetectEnv()
+			missing := evaluate.MissingPrereqs(env, prereqs)
+			if len(missing) > 0 {
+				log.Printf("skip %s: prereqs not met: %s", name, strings.Join(missing, ", "))
+				for _, m := range missing {
+					key := strings.TrimSuffix(m, "?")
+					if note := env.DetectedVia[key]; note != "" {
+						log.Printf("  %s detected via: %s", key, note)
+					}
+				}
+				return false
+			}
+		}
+	}
+	return check.Run()
 }
 
 func RegisterExploit(name string, exploit ExploitInterface) {

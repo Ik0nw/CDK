@@ -113,6 +113,10 @@ func (p EtcdGetToken) Run() bool {
 		endpoint = args[1]
 	}
 
+	if !detectEtcdService(endpoint, tlsConfig) {
+		return false
+	}
+
 	opt := etcdctl.EtcdRequestOption{
 		Endpoint:  endpoint,
 		Api:       "/v3/kv/range",
@@ -166,6 +170,26 @@ func (p EtcdGetToken) Run() bool {
 		}
 	}
 	return flag
+}
+
+func detectEtcdService(endpoint string, tlsConfig *tls.Config) bool {
+	opt := etcdctl.EtcdRequestOption{
+		Endpoint:  endpoint,
+		Api:       "/version",
+		Method:    "GET",
+		TlsConfig: tlsConfig,
+		Silent:    true,
+	}
+	resp, err := etcdctl.DoRequest(opt)
+	if err != nil {
+		log.Printf("[etcd-token-sweep] skip: etcd service not detected at %s: %v", endpoint, err)
+		return false
+	}
+	if gjson.Get(resp, "etcdserver").String() != "" || gjson.Get(resp, "etcdcluster").String() != "" {
+		return true
+	}
+	log.Printf("[etcd-token-sweep] skip: %s did not return an etcd /version response", endpoint)
+	return false
 }
 
 func getPods(token, endpoint string) (string, error) {

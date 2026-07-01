@@ -208,5 +208,6 @@ func findCgroupV2MountPoint() (string, error) {
 func init() {
 	exploit := cgroup2EbpfBypassS{}
 	exploit.ExploitType = "escaping"
+	exploit.ActivePrereqs = []string{"InContainer", "HasCgroupV2", "HasCapSysAdmin"}
 	plugin.RegisterExploit("cgroup2-ebpf-validator", exploit)
 }

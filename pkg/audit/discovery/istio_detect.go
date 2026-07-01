@@ -85,5 +85,6 @@ func (p istioCheckS) Run() bool {
 func init() {
 	exploit := istioCheckS{}
 	exploit.ExploitType = "discovery"
+	exploit.ActivePrereqs = []string{"HasIstioSidecar"}
 	plugin.RegisterExploit("istio-detect", exploit)
 }

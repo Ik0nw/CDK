@@ -153,5 +153,6 @@ func (p K8sCronJobDeployS) Run() bool {
 func init() {
 	exploit := K8sCronJobDeployS{}
 	exploit.ExploitType = "persistence"
+	exploit.ActivePrereqs = []string{"HasK8sAPI"}
 	plugin.RegisterExploit("k8s-cronjob-sensor", exploit)
 }

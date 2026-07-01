@@ -298,7 +298,7 @@ func (p K8sShadowApiServerS) Run() bool {
 	// sample:
 	// kubectl --server=https://<node-hostname>:9444/ --token=<token> --kubeconfig=/dev/null --insecure-skip-tls-verify=true get pods -A
 	if token == "" {
-		fmt.Println("\trun: kubectl --server=https://%s:9444 --kubeconfig=/dev/null --insecure-skip-tls-verify=true get pods -A\n", node)
+		fmt.Printf("\trun: kubectl --server=https://%s:9444 --kubeconfig=/dev/null --insecure-skip-tls-verify=true get pods -A\n", node)
 	} else {
 		fmt.Printf("\trun: kubectl --server=https://%s:9444 --token=%s --kubeconfig=/dev/null --insecure-skip-tls-verify=true get pods -A\n", node, token)
 	}
@@ -309,5 +309,6 @@ func (p K8sShadowApiServerS) Run() bool {
 func init() {
 	exploit := K8sShadowApiServerS{}
 	exploit.ExploitType = "persistence"
+	exploit.ActivePrereqs = []string{"HasK8sAPI"}
 	plugin.RegisterExploit("k8s-shadow-api-sensor", exploit)
 }

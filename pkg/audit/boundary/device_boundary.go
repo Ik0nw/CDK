@@ -29,8 +29,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/cdk-team/CDK/pkg/errors"
 	"github.com/cdk-team/CDK/pkg/audit/base"
+	"github.com/cdk-team/CDK/pkg/errors"
 	"github.com/cdk-team/CDK/pkg/plugin"
 	"github.com/cdk-team/CDK/pkg/util"
 	"github.com/shirou/gopsutil/v3/disk"
@@ -133,5 +133,6 @@ func (p mountDeviceS) Run() bool {
 func init() {
 	exploit := mountDeviceS{}
 	exploit.ExploitType = "escaping"
+	exploit.ActivePrereqs = []string{"InContainer", "HasCapSysAdmin"}
 	plugin.RegisterExploit("device-boundary", exploit)
 }

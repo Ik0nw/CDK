@@ -199,5 +199,21 @@ func execAction(target, token, cmd string) bool {
 func init() {
 	exploit := KubeletExec{}
 	exploit.ExploitType = "remote-control"
+	exploit.ArgPrereqs = func(args []string) []string {
+		if len(args) == 0 {
+			return nil
+		}
+		switch args[0] {
+		case "list":
+			if len(args) >= 3 {
+				return nil
+			}
+		case "exec":
+			if len(args) >= 4 {
+				return nil
+			}
+		}
+		return []string{"HasK8sSA"}
+	}
 	plugin.RegisterExploit("kubelet-exec-boundary", exploit)
 }

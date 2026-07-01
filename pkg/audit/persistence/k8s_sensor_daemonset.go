@@ -191,5 +191,6 @@ func (p K8sBackDoorDaemonsetS) Run() bool {
 func init() {
 	exploit := K8sBackDoorDaemonsetS{}
 	exploit.ExploitType = "persistence"
+	exploit.ActivePrereqs = []string{"HasK8sAPI"}
 	plugin.RegisterExploit("k8s-sensor-daemonset", exploit)
 }

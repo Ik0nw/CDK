@@ -78,5 +78,6 @@ func (p PidInject) Run() bool {
 func init() {
 	exploit := PidInject{}
 	exploit.ExploitType = "escaping"
+	exploit.ActivePrereqs = []string{"InContainer", "HasCapSysPtrace"}
 	plugin.RegisterExploit("ptrace-boundary", exploit)
 }

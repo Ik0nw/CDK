@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -40,7 +41,7 @@ type PortScanner struct {
 }
 
 func ScanPort(ip string, port int, timeout time.Duration) bool {
-	target := fmt.Sprintf("%s:%d", ip, port)
+	target := net.JoinHostPort(ip, strconv.Itoa(port))
 	conn, err := net.DialTimeout("tcp", target, timeout)
 
 	if err != nil {

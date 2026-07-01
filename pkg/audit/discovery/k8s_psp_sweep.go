@@ -401,5 +401,6 @@ func (p K8SPodSecurityPolicy) Run() bool {
 func init() {
 	exploit := K8SPodSecurityPolicy{}
 	exploit.ExploitType = "discovery"
+	exploit.ActivePrereqs = []string{"HasK8sAPI"}
 	plugin.RegisterExploit("k8s-psp-sweep", exploit)
 }

@@ -23,7 +23,6 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"syscall"
 
 	"github.com/cdk-team/CDK/pkg/errors"
 )
@@ -67,15 +66,7 @@ func IsSoftLink(FilePath string) bool {
 	if err != nil {
 		return false
 	}
-	if sys := fileInfo.Sys(); sys != nil {
-		if stat, ok := sys.(*syscall.Stat_t); ok {
-			nlink := uint64(stat.Nlink)
-			if nlink == 1 { // soft link ==1; hard link == 2
-				return true
-			}
-		}
-	}
-	return false
+	return fileInfo.Mode()&os.ModeSymlink != 0
 }
 
 func IsDir(FilePath string) bool {

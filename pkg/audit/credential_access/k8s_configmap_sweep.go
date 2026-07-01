@@ -139,5 +139,6 @@ func (p dumpK8sConfigmapS) Run() bool {
 func init() {
 	exploit := dumpK8sConfigmapS{}
 	exploit.ExploitType = "credential-access"
+	exploit.ActivePrereqs = []string{"HasK8sAPI"}
 	plugin.RegisterExploit("k8s-configmap-sweep", exploit)
 }

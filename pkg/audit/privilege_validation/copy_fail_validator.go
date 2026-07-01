@@ -45,8 +45,8 @@ import (
 	"syscall"
 	"unsafe"
 
-	"github.com/cdk-team/CDK/pkg/cli"
 	"github.com/cdk-team/CDK/pkg/audit/base"
+	"github.com/cdk-team/CDK/pkg/cli"
 	"github.com/cdk-team/CDK/pkg/plugin"
 	"golang.org/x/sys/unix"
 )
@@ -280,5 +280,6 @@ func (p copyFailCVE202631431S) Run() bool {
 func init() {
 	exploit := copyFailCVE202631431S{}
 	exploit.ExploitType = "privilege-escalation"
+	exploit.ActivePrereqs = []string{"InContainer"}
 	plugin.RegisterExploit("copy-fail-validator", exploit)
 }

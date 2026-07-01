@@ -30,9 +30,9 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/cdk-team/CDK/pkg/audit/base"
 	"github.com/cdk-team/CDK/pkg/cli"
 	"github.com/cdk-team/CDK/pkg/errors"
-	"github.com/cdk-team/CDK/pkg/audit/base"
 	"github.com/cdk-team/CDK/pkg/plugin"
 	"github.com/cdk-team/CDK/pkg/util"
 	shimapi "github.com/containerd/containerd/runtime/v1/shim/v1"
@@ -238,5 +238,6 @@ func (p containerdShimPwnS) Run() bool {
 func init() {
 	exploit := containerdShimPwnS{}
 	exploit.ExploitType = "escaping"
+	exploit.ActivePrereqs = []string{"InContainer", "HasContainerdSock"}
 	plugin.RegisterExploit("containerd-shim-validator", exploit)
 }

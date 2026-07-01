@@ -27,8 +27,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/cdk-team/CDK/pkg/cli"
 	"github.com/cdk-team/CDK/pkg/audit/base"
+	"github.com/cdk-team/CDK/pkg/cli"
 	"github.com/cdk-team/CDK/pkg/plugin"
 	"github.com/cdk-team/CDK/pkg/tool/kubectl"
 	"github.com/cdk-team/CDK/pkg/util"
@@ -131,5 +131,6 @@ func (p VarLogEscape) Run() bool {
 func init() {
 	exploit := VarLogEscape{}
 	exploit.ExploitType = "escaping"
+	exploit.ActivePrereqs = []string{"InContainer", "HasK8sSA"}
 	plugin.RegisterExploit("kubelet-var-log-boundary", exploit)
 }

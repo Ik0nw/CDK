@@ -1,5 +1,5 @@
-//go:build !no_cgroup_devices_boundary
-// +build !no_cgroup_devices_boundary
+//go:build linux && !no_cgroup_devices_boundary
+// +build linux,!no_cgroup_devices_boundary
 
 /*
 Copyright 2022 The Authors of https://github.com/CDK-TEAM/CDK .
@@ -163,5 +163,6 @@ func (p cgroupDevicesExploitS) Run() bool {
 func init() {
 	exploit := cgroupDevicesExploitS{}
 	exploit.ExploitType = "escaping"
+	exploit.ActivePrereqs = []string{"InContainer", "HasCgroupV1", "HasCapSysAdmin", "HasCapMknod"}
 	plugin.RegisterExploit("cgroup-devices-boundary", exploit)
 }

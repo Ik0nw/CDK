@@ -133,5 +133,6 @@ func (p K8sSecretsDumpS) Run() bool {
 func init() {
 	exploit := K8sSecretsDumpS{}
 	exploit.ExploitType = "credential-access"
+	exploit.ActivePrereqs = []string{"HasK8sAPI"}
 	plugin.RegisterExploit("k8s-secret-sweep", exploit)
 }

@@ -27,8 +27,8 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/cdk-team/CDK/pkg/cli"
 	"github.com/cdk-team/CDK/pkg/audit/base"
+	"github.com/cdk-team/CDK/pkg/cli"
 	"github.com/cdk-team/CDK/pkg/plugin"
 	"github.com/cdk-team/CDK/pkg/util"
 )
@@ -161,5 +161,6 @@ func (l lxcfsRWS) Run() bool {
 func init() {
 	exploit := lxcfsRWS{}
 	exploit.ExploitType = "escaping"
+	exploit.ActivePrereqs = []string{"InContainer", "HasLXCFS", "HasCapMknod"}
 	plugin.RegisterExploit("lxcfs-mknod-boundary", exploit)
 }

@@ -25,8 +25,8 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/cdk-team/CDK/pkg/cli"
 	"github.com/cdk-team/CDK/pkg/audit/base"
+	"github.com/cdk-team/CDK/pkg/cli"
 	"github.com/cdk-team/CDK/pkg/plugin"
 
 	"golang.org/x/sys/unix"
@@ -100,6 +100,7 @@ func (p CapDacReadSearch) Run() bool {
 func init() {
 	exploit := CapDacReadSearch{}
 	exploit.ExploitType = "escaping"
+	exploit.ActivePrereqs = []string{"InContainer", "HasCapDacReadSearch"}
 	plugin.RegisterExploit("cap-dac-boundary", exploit)
 }
 

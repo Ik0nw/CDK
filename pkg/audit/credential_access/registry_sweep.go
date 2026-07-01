@@ -24,6 +24,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/cdk-team/CDK/pkg/audit/base"
 
@@ -72,13 +73,14 @@ func checkLogin(url string, username string, password string) bool {
 		return false
 	}
 
-	client := &http.Client{}
+	client := &http.Client{Timeout: 5 * time.Second}
 	req.Header.Set("Authorization", authorizationHeader)
 	res, err := client.Do(req)
 	if err != nil {
 		log.Printf("client.Do error: %v\n", err)
 		return false
 	}
+	defer res.Body.Close()
 
 	if res.StatusCode == 200 {
 		return true
@@ -86,6 +88,30 @@ func checkLogin(url string, username string, password string) bool {
 		return false
 	}
 
+}
+
+func detectRegistryService(v2URL string) bool {
+	req, err := http.NewRequest("GET", v2URL, nil)
+	if err != nil {
+		log.Printf("[registry-sweep] skip: invalid registry URL %s: %v", v2URL, err)
+		return false
+	}
+	client := &http.Client{Timeout: 5 * time.Second}
+	res, err := client.Do(req)
+	if err != nil {
+		log.Printf("[registry-sweep] skip: registry service not detected at %s: %v", v2URL, err)
+		return false
+	}
+	defer res.Body.Close()
+
+	apiVersion := strings.ToLower(res.Header.Get("Docker-Distribution-Api-Version"))
+	authChallenge := strings.ToLower(res.Header.Get("WWW-Authenticate"))
+	if strings.Contains(apiVersion, "registry/2") ||
+		(strings.Contains(authChallenge, "bearer") && strings.Contains(authChallenge, "service=")) {
+		return true
+	}
+	log.Printf("[registry-sweep] skip: %s did not look like a Docker Registry v2 endpoint", v2URL)
+	return false
 }
 
 func (p RegistryBruteS) Run() bool {
@@ -101,7 +127,10 @@ func (p RegistryBruteS) Run() bool {
 
 	usernameList := normalizeInput(usernameInput)
 	passwordList := normalizeInput(passwordInput)
-	v2URL := fmt.Sprintf("%sv2/", imageRegistryURL)
+	v2URL := strings.TrimRight(imageRegistryURL, "/") + "/v2/"
+	if !detectRegistryService(v2URL) {
+		return false
+	}
 
 	log.Printf("user dict length: %d.\n", len(usernameList))
 	log.Printf("password dict length: %d.\n", len(passwordList))

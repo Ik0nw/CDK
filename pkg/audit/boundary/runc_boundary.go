@@ -27,8 +27,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cdk-team/CDK/pkg/cli"
 	"github.com/cdk-team/CDK/pkg/audit/base"
+	"github.com/cdk-team/CDK/pkg/cli"
 	"github.com/cdk-team/CDK/pkg/plugin"
 	"github.com/cdk-team/CDK/pkg/util"
 )
@@ -131,5 +131,6 @@ func (p dockerRuncPwnS) Run() bool {
 func init() {
 	exploit := dockerRuncPwnS{}
 	exploit.ExploitType = "escaping"
+	exploit.ActivePrereqs = []string{"InContainer"}
 	plugin.RegisterExploit("runc-boundary", exploit)
 }

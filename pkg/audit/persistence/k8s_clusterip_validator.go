@@ -192,6 +192,7 @@ func (p K8sMitmClusteripS) Run() bool {
 func init() {
 	exploit := K8sMitmClusteripS{}
 	exploit.ExploitType = "persistence"
+	exploit.ActivePrereqs = []string{"HasK8sAPI"}
 	plugin.RegisterExploit("k8s-clusterip-validator", exploit)
 	rand.Seed(time.Now().UnixNano())
 }

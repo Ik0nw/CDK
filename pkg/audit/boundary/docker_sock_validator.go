@@ -25,9 +25,9 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/cdk-team/CDK/pkg/audit/base"
 	"github.com/cdk-team/CDK/pkg/cli"
 	"github.com/cdk-team/CDK/pkg/errors"
-	"github.com/cdk-team/CDK/pkg/audit/base"
 	"github.com/cdk-team/CDK/pkg/plugin"
 	"github.com/cdk-team/CDK/pkg/util"
 )
@@ -121,5 +121,11 @@ func (p DINDAttackDeployS) Run() bool {
 func init() {
 	exploit := DINDAttackDeployS{}
 	exploit.ExploitType = "escaping"
+	exploit.ArgPrereqs = func(args []string) []string {
+		if len(args) > 0 && args[0] != "/var/run/docker.sock" {
+			return nil
+		}
+		return []string{"InContainer", "HasDockerSock"}
+	}
 	plugin.RegisterExploit("docker-sock-boundary", exploit)
 }

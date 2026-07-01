@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 	"syscall"
@@ -236,6 +237,14 @@ func (jc *jsonCollector) startCapture() *bytes.Buffer {
 // arm we use the raw NRs from linux/uapi/asm/unistd.h.
 // Runtime detection (ENOSYS errno) covers unknown arches.
 func memfdCreate(name string) (*os.File, error) {
+	if runtime.GOOS != "linux" {
+		f, err := os.CreateTemp("", name+"-*")
+		if err != nil {
+			return nil, err
+		}
+		_ = os.Remove(f.Name())
+		return f, nil
+	}
 	namePtr, err := syscall.BytePtrFromString(name)
 	if err != nil {
 		return nil, err

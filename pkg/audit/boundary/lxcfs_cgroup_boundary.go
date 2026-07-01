@@ -29,8 +29,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cdk-team/CDK/pkg/cli"
 	"github.com/cdk-team/CDK/pkg/audit/base"
+	"github.com/cdk-team/CDK/pkg/cli"
 	"github.com/cdk-team/CDK/pkg/plugin"
 	"github.com/cdk-team/CDK/pkg/util"
 )
@@ -222,5 +222,6 @@ func (l lxcfsRWCgroup) Run() bool {
 func init() {
 	exploit := lxcfsRWCgroup{}
 	exploit.ExploitType = "escaping"
+	exploit.ActivePrereqs = []string{"InContainer", "HasLXCFS", "HasCgroupV1", "HasCapSysAdmin"}
 	plugin.RegisterExploit("lxcfs-cgroup-boundary", exploit)
 }
