@@ -1,285 +1,212 @@
 # CDK - Container Defense Kit
 
-容器隔离基线审计工具 | 内部合规自测
+> 容器隔离基线审计工具 | 内部合规自测 · 技术架构 / 二次开发 / 代码审查参考文档
 
 ---
 
-## 合规声明（Compliance Statement）
-
-CDK 仅用于**已授权**的内部容器 / Kubernetes 集群隔离基线审计。请勿在未授权环境使用本工具。
-
-本工具依据企业安全基线执行只读扫描与边界验证，所有行为均应在正式授权范围与规则下开展。运行前请确认：
-
-- 目标集群、宿主机与网络归属于本组织或已签署书面授权；
-- 审计动作已纳入变更窗口，不对生产业务造成影响；
-- 审计过程中生成的临时数据（日志、报告、凭据副本）按企业数据分级策略妥善存储与销毁。
+> 面向所有开发者的架构与实现说明文档。
+> 想要编译、运行、解读报告（快速上手）请看面向最终用户的说明：
+>
+> 👉 **[HUMAN_README.md](./HUMAN_README.md) — 用户使用 / 目录速览 / 合规**
 
 ---
 
-## 适用场景
+## 0. 身份与约束（先读本节）
 
-- **容器运行时隔离边界审计**：Linux capabilities、cgroup、namespace、LSM（AppArmor/SELinux）策略覆盖度核验
-- **Kubernetes 集群合规基线评估**：RBAC、ServiceAccount、敏感组件暴露面（api-server / kubelet / etcd）、准入控制策略可见性审计
-- **构建流水线合规基线校验**：镜像内容、运行配置、权限策略（SecurityContext / PSP / PodSecurity）一致性检查
-- **Serverless / 短生命周期容器凭据暴露面扫描**：环境变量、挂载卷、元数据服务侧通道可见性评估
-
----
-
-## 编译构建（Build Instructions）
-
-标准 Go 模块，入口 `./cmd/cdk`，无构建脚本，使用 `go build` 即可（需 Go 1.16+）。
-
-### 完整版（Full Profile，含全部审计项）
-
-交叉编译，无需额外工具链：
-
-```bash
-# linux / amd64
-GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o cdk ./cmd/cdk
-
-# linux / arm64
-GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o cdk ./cmd/cdk
-```
-
-- `-trimpath` 移除编译机路径信息
-- `-ldflags="-s -w"` 去除符号表与调试信息，缩小体积
-- 产物约 11MB，静态链接、零 OS 依赖
-
-### 精简版（Thin Profile，约 2MB，适用于 Serverless）
-
-短生命周期容器环境（Serverless / Fargate / 函数计算）下的凭据暴露面扫描建议精简构建：
-
-```bash
-GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -tags thin -o cdk_thin ./cmd/cdk
-```
-
-### 自定义裁剪（Custom Profile，`no_*` build tag）
-
-按需叠加 `no_*` 标签，禁用指定审计向量，适用于仅需部分基线的审计任务。例如：仅保留容器隔离边界审计、禁用集群策略相关项：
-
-```bash
-GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" \
-  -tags "no_k8s_clusterip_check no_k8s_shadow_api_sensor no_k8s_cronjob_sensor no_kubelet_exec_boundary no_etcd_token_sweep no_registry_sweep no_containerd_shim_check" \
-  -o cdk ./cmd/cdk
-```
-
-全部可用的 `no_*` 标签如下：
-
-```
-# 审计项标签
-no_containerd_shim_check
-no_docker_api_check
-no_docker_sock_check
-no_debug_shell
-no_sensor_daemonset
-no_connect_back
-
-# 隔离边界验证标签
-no_unpriv_userns_check
-no_kubelet_var_log_boundary
-no_runc_boundary
-no_docker_sock_boundary
-no_lxcfs_boundary
-no_cgroup_boundary
-no_device_boundary
-no_procfs_boundary
-no_cgroup_devices_boundary
-
-# 集群策略与暴露面标签
-no_kubelet_exec_boundary
-no_etcd_token_sweep
-no_registry_sweep
-no_k8s_clusterip_check
-no_k8s_configmap_sweep
-no_k8s_cronjob_sensor
-no_k8s_sa_token_sweep
-no_k8s_secret_sweep
-no_k8s_shadow_api_sensor
-
-# 通用工具与辅助标签
-no_istio_detect
-no_cap_dac_boundary
-no_ptrace_boundary
-no_file_scan
-no_service_probe
-no_netcat_tool
-no_probe_tool
-no_vi_tool
-```
-
-### UPX 压缩（Minimize Binary）
-
-```bash
-upx --best --ultra-brute cdk
-```
-
-> UPX 壳本身为常见 ELF 加壳特征，部分 EDR/HIDS 会将其标记为可疑。正式生产合规审计不推荐启用，以免引起不必要的误报。
+- 本仓库 = **CDK（Container Defense Kit）**，Go 项目，模块根 `github.com/cdk-team/CDK`（或私有 fork）。
+- 仓库目的：在容器 / K8s / Linux 宿主机环境进行 **只读的** 隔离基线审计与安全评估。
+- **禁止**为它添加任何会**变更**目标环境状态的行为（写文件、开 socket 对外、修改 sysctl、修改 cgroup、加载内核模块等），除非显式地被“主动探测（active probe）”框架封装并默认关闭。
+- **禁止**引入会对外发起非元数据协议流量的网络行为（非 169.254.169.254 / kube-api 既定端点的流量一律视为违规）。
+- 任何新的“主动”行为必须进入 `Prereqs` 门控（见下文 §3）并默认在 `NoGating=false` 下保持 **SKIP**，直到用户显式启用。
 
 ---
 
-## 快速开始
+## 1. 目录结构（开发速查）
 
-```bash
-./cdk eva              # 基础隔离基线评估，输出不合规项与推荐后续审计动作
-./cdk eva --full       # 全量评估（含本地敏感文件暴露面扫描）
-./cdk run --list       # 列出所有可用审计检查项
-./cdk run <check-name> [args]  # 执行单项审计检查
-./cdk -v               # 查看版本
 ```
-
-> 评估输出中：
-> - `[INFO]` 为环境信息，仅作记录；
-> - `[WARN]` 为弱不合规项，建议纳入二次核验；
-> - `[RISK]` 为明确不合规项，按企业合规流程处置。
+CDK/
+├── cmd/cdk/                       # CLI 入口；新增子命令改这里
+├── pkg/evaluate/                  # ⚠️ 核心：所有评估检查项
+│   ├── env.go                     # Env 结构 + Prereq 定义 + Check 接口
+│   ├── json.go                    # 报告序列化（含 memfd 特殊路径）
+│   ├── json_memfd_linux_*.go      # 按 GOARCH 分离的 memfd syscall 号
+│   ├── json_memfd_notlinux.go     # 非 linux 的桩
+│   ├── available_linux_capabilities.go  # capabilities 位图解析
+│   ├── seccomp_deep_inspect.go    # seccomp BPF 反编译 / 策略解析
+│   ├── k8s_service_account.go     # SA token 与挂载探测
+│   ├── security_info.go           # 安全上下文统一读取
+│   ├── kernel_hardening_linux.go  # T*  内核硬ening 评估
+│   ├── kernel_lockdown_linux.go   # T*  lockdown 评估
+│   ├── apparmor_deep_linux.go     # T45 AppArmor profile 深度检查
+│   ├── landlock_deep_linux.go     # T* Landlock
+│   ├── selinux_context_linux.go   # T* SELinux
+│   ├── seccomp_advanced_linux.go  # T* seccomp 进阶
+│   ├── userns_limits_linux.go     # T* user-ns 限制
+│   ├── cloud_vendor_expand_linux.go # T* 云厂商元数据扩展
+│   ├── ebpf_recon_linux.go        # T* eBPF 暴露面
+│   ├── io_uring_check.go          # T* io_uring 可用性
+│   ├── prctl_state.go             # T* prctl 选项
+│   ├── ptrace_scope_linux.go      # T* ptrace YAMA
+│   ├── runtime_fingerprint.go     # T* 运行时指纹（docker/containerd/cri-o/pouch）
+│   ├── sysnr_linux_*.go           # 每架构 syscall 号常量表
+│   └── sysnr_notlinux.go          # 非 linux 桩
+├── pkg/audit/credential_access/   # 凭据访问类审计
+├── pkg/cli/                       # 参数解析
+├── pkg/plugin/                    # 插件接口（interface.go 含 gating 集成）
+├── pkg/tool/probe/net.go          # 网络/元数据探测
+├── pkg/util/file_io.go            # 文件 IO 封装
+├── docs/superpowers/plans/        # 历史变更的设计记录
+├── README.md                      # ⬅ 你正在看的这份（架构 / 开发规范）
+├── HUMAN_README.md                # 👉 人类最终用户使用说明
+└── README-AUDIT-COUNTERS.md       # T001–T057 检查项全量清单
+```
 
 ---
 
-## 模块概览
+## 2. 新增评估项（Check）的强制模板
 
-CDK 由三大模块组成，以 `cdk <模块> ...` 方式调用：
+当你要新增一个 `T0xx` 检查项时，**必须按下列模板执行**，否则视为不合规：
 
-| 模块 | 子命令 | 用途 |
+```go
+// 1. 在 pkg/evaluate/ 下新增 T<NNN>_<name>_linux.go（跨平台文件用 build tag）
+//
+// 2. 定义注册函数，调用 RegisterCheck（已在 env.go / check_registry.go）
+func init() {
+    RegisterCheck(Check{
+        ID:          "T099",
+        Prereqs:     PrLinux | PrContainer, // 只在 Linux 容器内运行
+        Info: Info{
+            Name:        "example_check",
+            Description: "一句话说明这项检查什么、为什么重要",
+            Severity:    "medium", // info | low | medium | high | critical
+            Category:    "isolation", // isolation | credential | hardening | fingerprint | metadata | capability
+        },
+        Run: func(e Env) Result {
+            // 3. 只读取；不得修改。失败时返回 SKIP 并说明原因，不要 panic。
+            // 4. 依赖内核版本/能力/某文件存在时，先判断 e 字段再读。
+            return Result{Level: LevelWarn, Detail: ..., Reason: "..."}
+        },
+    })
+}
+```
+
+**关键字段约定：**
+
+| 字段 | 合法值 |
+|---|---|
+| `Prereqs` | `PrNone`（任意环境）或多个 `PrXxx` 的按位或。所有标志见 `pkg/evaluate/env.go`。 |
+| `Result.Level` | `LevelPass`, `LevelInfo`, `LevelWarn`, `LevelFail`, `LevelSkip`。|
+| `Result.Detail` | 保持 JSON 可序列化的 struct；不要塞二进制。|
+| `Result.Reason` | `LevelSkip` 时必填，说明 **为什么**被跳过。 |
+
+**修改代码时的 L0 检查清单（代码提交前必过自查项）：**
+
+1. 🔒 有没有对目标环境产生副作用？（`O_WRONLY`、`os.Create`、`os.Remove`、`exec.Command`、`Listen/Dial` 到非元数据 IP、`prctl(SET_*)` 等一律需解释）
+2. 🚪 有没有接入 `Prereqs`？如果会读 `/proc/kcore`、`sysfs` 敏感路径、会尝试 setns / ptrace / bpf 调用，必须加 `PrXxx` 并默认 gated。
+3. 🧱 错误路径是否返回 `LevelSkip` + 合理的 `Reason`？
+4. 🧱 跨平台代码是否加了 build tag？非 Linux 的“桩文件”放在 `<name>_notlinux.go` 或带 `//go:build !linux`。
+5. 🧠 新增的检查项编号 `T<NNN>` **必须**在 `README-AUDIT-COUNTERS.md` 末尾追加一行。
+6. 📝 **不要提交 `_test.go`** 到 MR（该仓库要求人工 review 单测后单独合入）。
+
+---
+
+## 3. 前置门控系统（Preflight Gating）
+
+### 3.1 入口
+
+`pkg/evaluate/env.go` 中的 `Env` 结构：
+
+```go
+type Env struct {
+    OS            string  // GOOS
+    Arch          string  // GOARCH
+    KernelVersion string  // uname -r
+    InContainer   bool    // 是否在容器内
+    InitPID       bool    // PID == 1
+    Systemd       bool    // systemd 为 init
+    IsK8s         bool    // 有 KUBERNETES_SERVICE_HOST 或 /var/run/secrets/kubernetes.io
+    CgroupV2      bool    // cgroup v2
+    DinD          bool    // Docker-in-Docker（嵌套容器）
+    Caps          uint64  // 可用 capabilities 位图
+    NoGating      bool    // 命令行 --no-gating
+}
+```
+
+### 3.2 Prereq 位
+
+```go
+const (
+    PrNone      Prereq = 0
+    PrLinux     Prereq = 1 << iota
+    PrHost                              // 在宿主机（非容器）
+    PrContainer                         // 在容器内
+    PrK8s                               // 处于 K8s Pod
+    PrInitPID                           // PID=1
+    PrSystemd                           // systemd 为 init
+    PrCgroupV2                          // cgroup v2
+    PrDinD                              // Docker-in-Docker
+    PrCapSysAdmin                       // 持有 CAP_SYS_ADMIN
+    // ...
+)
+```
+
+### 3.3 工作流程
+
+```
+RunAllChecks()
+  └─ detectEnv()                 // 只执行一次，填充 Env（含 9 项探测）
+       └─ for _, check := range registry:
+              if !check.Prereqs.satisfied(env) → SKIP with Reason
+              else → check.Run(env)
+```
+
+**当你新增 `Env` 字段时：**
+- 必须配套一个 `PrXxx` 位
+- 必须在 `detectEnv()` 中设置默认值（不要让布尔型零值意外“通过”门控）
+- 必须在 CLI 的 `--no-gating` 下全部视为 true（已由 `Prereqs.satisfied` 统一处理，不要手动覆盖）
+
+---
+
+## 4. 编译 / 交叉编译约束（修改构建相关必须遵守）
+
+- 入口：`./cmd/cdk`。
+- Go 版本下限：**Go 1.16**。避免使用 1.18+ generics / 1.21+ slices 包等若不确定是否允许，请查 `go.mod`。
+- memfd 相关代码按架构拆分文件：`json_memfd_linux_{386,amd64,arm,arm64}.go`，每文件内只定义 `sysMemfdCreate` 常量。
+- syscall 号按架构拆分：`sysnr_linux_{386,amd64,arm,arm64}.go` + `sysnr_notlinux.go` 桩。
+- **若修改会导致 `go vet ./...` 或 `GOARCH=arm64 go build ./...` 失败，不得合入。**
+
+---
+
+## 5. 关于测试文件
+
+- **MR 中不要包含任何 `_test.go` 文件或 `test/` 目录内容。** 该仓库要求单测单独提交流程与人工复核。
+- 本地开发仍建议编写测试，但提交 MR 前请执行：
+  ```bash
+  git status --short | awk '$1 ~ /A/ && $2 ~ /_test\.go|^test\// {print $2}' | xargs git rm --cached
+  ```
+
+---
+
+## 6. 常见改动错误（提交前必查）
+
+| 错误模式 | 后果 | 正确做法 |
 |---|---|---|
-| 评估（Evaluate） | `cdk eva [--full]` | 环境识别 + 基线评估，输出分级报告与推荐后续检查项 |
-| 审计检查（Audit Check） | `cdk run <check> [args]` | 单项审计检查，用于对评估报告中标记项做深度验证 |
-| 工具（Tool） | `cdk <tool> [args]` | 辅助命令行工具（网络、进程、API 访问、编辑等） |
+| 在 `Run(env)` 里写 `/tmp/cdk-scan-*` 临时文件 | 违反只读原则 | 用 `bytes.Buffer`；必须落盘时显式用 `PrTempWritable` Prereq + 默认 gated |
+| `switch runtime.GOOS { case "linux": ... default: panic(...) }` | 非 Linux 构建时 CI 炸 | 用 build tag；非 Linux 写 `//go:build !linux` 的空返回桩 |
+| 新增 `Txxx` 未更新 `README-AUDIT-COUNTERS.md` | 报告/审计缺失映射 | 同步追加，包含 T ID、Name、Category、默认 Severity |
+| 在 `detectEnv()` 里执行有副作用的探测 | 污染前置状态 | 所有探测只读；任何需要主动调用的请放到独立 `Run` Check + PrActive |
+| 把 JSON 序列化错误当 `panic` | 线上报告丢失 | `LevelInfo + Detail: "<encode err: xxx>"` |
+| 修改报告 schema 但不改 `HUMAN_README.md` 对应说明 | 人类用户误解 | §4 的表格必须同步；`README-AUDIT-COUNTERS.md` 必须同步 |
 
 ---
 
-## Evaluate 评估模块 — `cdk eva [--full]`
+## 7. 面向人类的文档（引用链接）
 
-评估模块按以下维度扫描并输出分级结果：
+修改了行为、接口、检查项编号或报告 schema 后，**必须同步更新面向人类的文档**：
 
-- 系统基础信息与容器环境识别（内核版本、cgroup 版本、namespace 视图、是否特权容器）
-- Linux Capabilities 审计（privileged 容器、危险 capabilities 是否可被利用于越权）
-- Mount namespace / Procfs / Sysfs 挂载暴露（可写宿主路径、敏感挂载点）
-- Network namespace 边界状态（hostNetwork、共享宿主机网络栈）
-- 环境变量与进程面的凭据暴露风险（Token、AK/SK、密钥、连接串）
-- Kubernetes api-server / ServiceAccount / RBAC 可见性（自动探测集群内默认凭据路径与 API 可达性）
-- Istio sidecar / kube-proxy 配置审计
-- 云元数据服务可达性（169.254.169.254 等）
-- etcd、kubelet、Docker daemon 暴露面发现（基于常见端口、UNIX socket 路径）
+- 👉 **[HUMAN_README.md](./HUMAN_README.md)** — 用户使用说明、目录速览、门控机制介绍、MR 说明
+- 👉 **[README-AUDIT-COUNTERS.md](./README-AUDIT-COUNTERS.md)** — T001–T057 检查项总表（新增/重编号时必改）
 
 ---
 
-## Audit Check 审计检查模块 — `cdk run <check> [args]`
-
-审计检查按用途分为三组。**所有命令均为只读或仅用于授权范围内的边界验证**。
-
-### 一、Isolation Boundary Validation（隔离边界验证）
-
-| 命令 | 说明 |
-|---|---|
-| `cdk run cgroup-boundary "<cmd>"` | cgroup v1 release_agent 触发路径验证（需 privileged，确认宿主路径可达性） |
-| `cdk run cgroup-devices-boundary` | cgroup `devices.allow` + `mknod` 设备节点访问边界验证 |
-| `cdk run cgroup2-ebpf-validator` | cgroup v2 eBPF 设备控制器策略覆盖验证 |
-| `cdk run lxcfs-mknod-boundary` | LXCFS 挂载场景下设备节点边界验证 |
-| `cdk run lxcfs-cgroup-boundary "<cmd>"` | LXCFS + cgroup 协同边界验证 |
-| `cdk run procfs-boundary` | procfs 挂载隔离验证（宿主进程命名空间泄露面） |
-| `cdk run unpriv-userns-boundary` | 非特权 user namespace 隔离策略验证 |
-| `cdk run cap-dac-boundary` | CAP_DAC_READ_SEARCH 宿主文件读取面验证 |
-| `cdk run containerd-shim-validator` | containerd shim socket 权限面验证 |
-| `cdk run runc-boundary` | runc 版本与行为基线验证 |
-| `cdk run docker-sock-boundary` / `docker-sock-audit` | Docker UNIX socket 暴露面与权限验证 |
-| `cdk run docker-api-check` | Docker HTTP API 暴露面与未授权访问验证 |
-| `cdk run kubelet-var-log-boundary` | kubelet `/var/log` 挂载隔离验证 |
-| `cdk run copy-fail-validator` | 内核 `copy_file_range` 系统调用行为验证（x86_64，非 root → root 边界） |
-| `cdk run device-boundary` | 块设备宿主访问边界验证（磁盘直挂场景） |
-| `cdk run ptrace-boundary` | ptrace 系统调用隔离验证（进程注入面） |
-
-### 二、Cluster Policy & RBAC Validation（集群策略与权限验证）
-
-| 命令 | 说明 |
-|---|---|
-| `cdk run k8s-sensor-daemonset` | DaemonSet 部署权限基线传感器（验证当前 SA 是否具备集群级 DaemonSet 部署能力） |
-| `cdk run k8s-shadow-api-sensor` | Shadow api-server 可见性传感器（验证是否存在异常聚合/代理 API） |
-| `cdk run k8s-cronjob-sensor` | CronJob 调度权限基线传感器（验证 SA 是否可创建定时作业） |
-| `cdk run k8s-clusterip-validator` | ClusterIP 流量策略验证（ExternalIP 准入控制基线） |
-| `cdk run kubelet-exec-boundary` | kubelet exec API 暴露面与认证配置验证 |
-| `cdk run etcd-token-sweep` | etcd K8s Token 面枚举审计（验证 etcd 未授权访问风险） |
-| `cdk run k8s-sa-token-sweep` | ServiceAccount Token 暴露面扫描（挂载卷、ENV、进程可见） |
-| `cdk run k8s-secret-sweep` | Secret 配置暴露面扫描（base64 明文与挂载点审计） |
-| `cdk run k8s-configmap-sweep` | ConfigMap 配置暴露面扫描 |
-| `cdk run registry-sweep` | 镜像仓库凭据配置审计（imagePullSecret、Docker config.json） |
-
-### 三、Connectivity & Surface Validation（连通性与暴露面验证）
-
-| 命令 | 说明 |
-|---|---|
-| `cdk run connect-back-shell` | 出口连通性探测（反向 shell 能力基线，用于验证出口防火墙 / Egress 策略覆盖） |
-| `cdk run deploy-debug-shell` | Web 调试 shell 部署基线传感器（验证 Web 层是否具备写入可执行脚本的能力） |
-| `cdk run service-probe` | 内部服务端口可达性探测（Service/NodePort/ClusterIP 暴露面） |
-| `cdk run istio-detect` | Istio Sidecar 元数据与配置面扫描 |
-
----
-
-## Tool 工具模块 — `cdk <tool>`
-
-内置常用命令行工具，便于在最小化容器镜像中完成审计取证。工具之间相互独立，可通过自定义裁剪整体移除。
-
-```bash
-cdk nc [options]              # TCP 隧道 / 流量转发
-cdk ps                        # 进程信息（兼容最小镜像无 procps）
-cdk netstat                   # 连接与监听端口信息（类似 netstat -antup）
-cdk ifconfig                  # 网络接口与地址信息
-cdk ed <file>                 # 最小化文本编辑器（类 vi）
-cdk probe                     # IP / 端口可达性探测
-cdk kcurl <uri> [data]        # 对 K8s api-server 发起请求（自动读取 SA Token）
-cdk dcurl <uri> [data]        # 对 Docker HTTP API 发起请求
-cdk ucurl <socket> <uri> [data]  # 对 UNIX Domain Socket 发起 HTTP 请求（常用于 Docker/containerd）
-cdk ectl                      # etcd 元数据枚举（未授权访问验证）
-```
-
-通用命令：
-
-```bash
-cdk -v                        # 查看版本
-cdk                           # 查看全部可用命令与帮助
-```
-
----
-
-## 构建示例（Build Profile 组合建议）
-
-以下三种常见合规审计场景的构建组合，供参考：
-
-### 1. 仅容器边界审计（不含集群策略）
-
-适用于仅需核验单容器隔离边界、不涉及 K8s 集群维度的快速审计：
-
-```bash
-GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" \
-  -tags "no_sensor_daemonset no_k8s_shadow_api_sensor no_k8s_cronjob_sensor \
-         no_k8s_clusterip_check no_kubelet_exec_boundary no_etcd_token_sweep \
-         no_registry_sweep no_k8s_configmap_sweep no_k8s_sa_token_sweep \
-         no_k8s_secret_sweep no_istio_detect" \
-  -o cdk_container ./cmd/cdk
-```
-
-### 2. 仅 Serverless 凭据暴露面扫描（Thin + 大量裁剪）
-
-适用于 Serverless / Fargate / 函数计算环境，仅评估凭据与元数据面：
-
-```bash
-GOOS=linux GOARCH=amd64 go -trimpath -ldflags="-s -w" \
-  -tags "thin \
-         no_containerd_shim_check no_docker_api_check no_docker_sock_check \
-         no_debug_shell no_sensor_daemonset no_connect_back \
-         no_unpriv_userns_check no_kubelet_var_log_boundary no_runc_boundary \
-         no_docker_sock_boundary no_lxcfs_boundary no_cgroup_boundary \
-         no_device_boundary no_procfs_boundary no_cgroup_devices_boundary \
-         no_kubelet_exec_boundary no_etcd_token_sweep no_registry_sweep \
-         no_k8s_clusterip_check no_k8s_configmap_sweep no_k8s_cronjob_sensor \
-         no_k8s_sa_token_sweep no_k8s_secret_sweep no_k8s_shadow_api_sensor \
-         no_istio_detect no_cap_dac_boundary no_ptrace_boundary \
-         no_service_probe no_netcat_tool no_probe_tool no_vi_tool" \
-  -o cdk_thin_secrets ./cmd/cdk
-```
-
-### 3. 全量基线（Full Profile）
-
-适用于正式全集群合规基线审计，包含全部维度：
-
-```bash
-GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o cdk_full ./cmd/cdk
-```
+*当审查 / 重构过程中出现本文件与 `HUMAN_README.md` 描述不一致的地方，以 `HUMAN_README.md` + 代码本身的事实为准，并请及时修正本文件。*
