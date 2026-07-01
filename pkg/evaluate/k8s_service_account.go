@@ -29,6 +29,7 @@ import (
 
 	"github.com/cdk-team/CDK/conf"
 	"github.com/cdk-team/CDK/pkg/tool/kubectl"
+	"github.com/cdk-team/CDK/pkg/util"
 )
 
 // CheckPrivilegedK8sServiceAccount first decodes any mounted SA token
@@ -77,12 +78,12 @@ func CheckPrivilegedK8sServiceAccount(tokenPath string) bool {
 			return true
 		} else {
 			fmt.Println("\tlist-namespaces denied (or returned no kube-system)")
-			fmt.Println("\tresponse preview: " + truncate(resp, 160))
+			fmt.Println("\tresponse preview: " + truncate(util.RedactSensitive(resp), 160))
 			return priv
 		}
 	} else {
 		fmt.Println("\tapiserver rejected SA credentials (or did not return APIGroupList)")
-		fmt.Println("\tresponse preview: " + truncate(resp, 160))
+		fmt.Println("\tresponse preview: " + truncate(util.RedactSensitive(resp), 160))
 		return priv
 	}
 }

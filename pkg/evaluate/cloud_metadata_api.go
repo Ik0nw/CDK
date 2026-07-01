@@ -25,7 +25,10 @@ import (
 )
 
 func CheckCloudMetadataAPI() {
+	attempts := 0
 	for _, apiInstance := range conf.CloudAPI {
+		attempts++
+		fmt.Printf("\tmetadata GET attempt %d: %s\n", attempts, apiInstance.API)
 		cli := goz.NewClient(goz.Options{
 			Timeout: 1,
 		})
@@ -42,6 +45,7 @@ func CheckCloudMetadataAPI() {
 			log.Printf("failed to dial %s API.", apiInstance.CloudProvider)
 		}
 	}
+	fmt.Printf("\tmetadata GET attempts total: %d\n", attempts)
 }
 
 func init() {

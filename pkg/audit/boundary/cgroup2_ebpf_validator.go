@@ -181,8 +181,8 @@ func (p cgroup2EbpfBypassS) Run() bool {
 				log.Printf("mknod err: %v", err)
 				return false
 			} else {
-				log.Println("Exploit success! Device node created.")
-				log.Println(runtimeBlockDeviceBrowseHint(mi.Fstype, resultName))
+				defer func() { _ = os.Remove(resultName) }()
+				log.Printf("Device node validation succeeded and is scheduled for cleanup: %s (%s)", resultName, mi.Fstype)
 				return true
 			}
 		}

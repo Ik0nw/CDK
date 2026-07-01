@@ -151,7 +151,8 @@ func (p cgroupDevicesExploitS) Run() bool {
 				return false
 			} else {
 				// escape done~
-				log.Println(runtimeBlockDeviceBrowseHint(mi.Fstype, resultName))
+				defer func() { _ = os.Remove(resultName) }()
+				log.Printf("block device probe node created and scheduled for cleanup: %s (%s)", resultName, mi.Fstype)
 				return true
 			}
 		}

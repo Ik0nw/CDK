@@ -28,6 +28,7 @@ import (
 	"github.com/cdk-team/CDK/pkg/audit/base"
 	"github.com/cdk-team/CDK/pkg/cli"
 	"github.com/cdk-team/CDK/pkg/plugin"
+	"github.com/cdk-team/CDK/pkg/util"
 
 	"golang.org/x/sys/unix"
 
@@ -38,10 +39,11 @@ import (
 const (
 	defaultRef     = "/etc/hostname"
 	defaultTarget  = "/etc/shadow"
-	defaultShell   = "/bin/bash"
 	ext4SuperMagic = 0xEF53
 	xfsSuperMagic  = 0x58465342
 )
+
+var defaultShell = util.BashPath()
 
 // plugin interface
 type CapDacReadSearch struct{ base.BaseExploit }

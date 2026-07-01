@@ -31,23 +31,34 @@ import (
 	"github.com/cdk-team/CDK/pkg/errors"
 	"github.com/cdk-team/CDK/pkg/plugin"
 	"github.com/cdk-team/CDK/pkg/tool/kubectl"
+	"github.com/cdk-team/CDK/pkg/util"
 )
 
-var cronJobAPI = "/apis/batch/v1beta1/namespaces/kube-system/cronjobs"
+var cronJobAPI = "/apis/batch/v1beta1/namespaces/" + auditSensorNamespace + "/cronjobs"
 var cronJobConfig = `
 {
-	"apiVersion": "batch/v1beta1",
-	"kind": "CronJob",
-	"metadata": {
-		"name": "cdk-sensor-cronjob"
-	},
+		"apiVersion": "batch/v1beta1",
+		"kind": "CronJob",
+		"metadata": {
+			"name": "cdk-sensor-cronjob",
+			"labels": {
+				"audit.cdk/owner": "cdk",
+				"audit.cdk/component": "cronjob-sensor"
+			}
+		},
 	"spec": {
 		"jobTemplate": {
-			"spec": {
-				"template": {
-					"spec": {
+				"spec": {
+					"template": {
+						"metadata": {
+							"labels": {
+								"audit.cdk/owner": "cdk",
+								"audit.cdk/component": "cronjob-sensor"
+							}
+						},
+						"spec": {
 						"containers": [{
-							"args": ["/bin/sh", "-c", "$SHELL_CMD"],
+							"args": ["$SHELL_PATH", "-c", "$SHELL_CMD"],
 							"image": "$IMAGE",
 							"imagePullPolicy": "IfNotPresent",
 							"name": "cdk-sensor-cronjob-container"
@@ -78,6 +89,7 @@ func deployK8sCronjob(serverAddr string, tokenPath string, image string, inputAr
 	}
 	cronJobConfig = strings.ReplaceAll(cronJobConfig, "$SCHEDULE_EXPR", scheduleExpr)
 	cronJobConfig = strings.ReplaceAll(cronJobConfig, "$IMAGE", image)
+	cronJobConfig = strings.ReplaceAll(cronJobConfig, "$SHELL_PATH", util.ShellPath())
 	cronJobConfig = strings.ReplaceAll(cronJobConfig, "$SHELL_CMD", inputArgs)
 
 	opts := kubectl.K8sRequestOption{
@@ -106,9 +118,10 @@ func deployK8sCronjob(serverAddr string, tokenPath string, image string, inputAr
 	}
 	if !strings.Contains(resp, "selfLink") {
 		log.Println("api-server response:")
-		fmt.Println(resp)
+		fmt.Println(util.RedactSensitive(resp))
 		return "", errors.New("invalid response data, possible caused by api-server forbidden this request.")
 	}
+	writeAuditManifest("cronjob", "cdk-sensor-cronjob", cronJobConfig)
 
 	return resp, nil
 }
@@ -146,7 +159,7 @@ func (p K8sCronJobDeployS) Run() bool {
 		return false
 	}
 	log.Println("api-server response:")
-	fmt.Println(resp)
+	fmt.Println(util.RedactSensitive(resp))
 	return true
 }
 

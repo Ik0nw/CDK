@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/cdk-team/CDK/pkg/tool/kubectl"
+	"github.com/cdk-team/CDK/pkg/util"
 )
 
 func CheckK8sAnonymousLogin() bool {
@@ -65,12 +66,12 @@ func CheckK8sAnonymousLogin() bool {
 			return true
 		} else {
 			fmt.Println("\tfailed.")
-			fmt.Println("\tresponse:" + resp)
+			fmt.Println("\tresponse:" + util.RedactSensitive(resp))
 			return true
 		}
 	} else {
 		fmt.Println("\tapi-server forbids anonymous request.")
-		fmt.Println("\tresponse:" + resp)
+		fmt.Println("\tresponse:" + util.RedactSensitive(resp))
 		return false
 	}
 }

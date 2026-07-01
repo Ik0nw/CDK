@@ -36,6 +36,8 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+
+	"github.com/cdk-team/CDK/pkg/util"
 )
 
 const (
@@ -145,13 +147,13 @@ func listen(network, host string, port int, command bool) {
 		var shell string
 		switch runtime.GOOS {
 		case "linux":
-			shell = "/bin/sh"
+			shell = util.ShellPath()
 		case "freebsd":
 			shell = "/bin/csh"
 		case "windows":
 			shell = "cmd.exe"
 		default:
-			shell = "/bin/sh"
+			shell = util.ShellPath()
 		}
 		cmd := exec.Command(shell)
 		convert := newConvert(conn)
@@ -223,13 +225,13 @@ func dial(network, host string, port int, command bool) {
 		var shell string
 		switch runtime.GOOS {
 		case "linux":
-			shell = "/bin/sh"
+			shell = util.ShellPath()
 		case "freebsd":
 			shell = "/bin/csh"
 		case "windows":
 			shell = "cmd.exe"
 		default:
-			shell = "/bin/sh"
+			shell = util.ShellPath()
 		}
 		cmd := exec.Command(shell)
 		convert := newConvert(conn)

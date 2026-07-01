@@ -33,6 +33,7 @@ import (
 	"github.com/cdk-team/CDK/conf"
 	"github.com/cdk-team/CDK/pkg/cli"
 	"github.com/cdk-team/CDK/pkg/plugin"
+	"github.com/cdk-team/CDK/pkg/util"
 )
 
 func SearchLocalFileText(StartDir string) {
@@ -76,7 +77,7 @@ func SearchLocalFileText(StartDir string) {
 			pattern := regexp.MustCompile(v)
 			params := pattern.FindAllStringSubmatch(string(data), -1)
 			for _, matched := range params {
-				fmt.Printf("\nfound %s in: %s\n%s\n", k, path, matched)
+				fmt.Printf("\nfound %s in: %s\n%s\n", k, path, util.RedactSensitive(fmt.Sprint(matched)))
 			}
 		}
 

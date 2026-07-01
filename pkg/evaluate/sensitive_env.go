@@ -21,6 +21,8 @@ import (
 	"log"
 	"os"
 	"regexp"
+
+	"github.com/cdk-team/CDK/pkg/util"
 )
 
 func SearchSensitiveEnv() {
@@ -29,7 +31,7 @@ func SearchSensitiveEnv() {
 		if err != nil {
 			log.Println(err)
 		} else if ans {
-			log.Printf("sensitive env found:\n\t%s", env)
+			log.Printf("sensitive env found:\n\t%s", util.RedactEnvLine(env))
 		}
 	}
 }

@@ -27,7 +27,7 @@ type TCPScannerConfS struct {
 
 var TCPScannerConf = TCPScannerConfS{
 	Timeout:     500 * time.Millisecond,
-	MaxParallel: 50,
+	MaxParallel: 20,
 	PortList: map[string]string{
 		"ssh":                 "22",
 		"http":                "80",

@@ -106,7 +106,7 @@ spec:
         - CAP_PERFMON
         - CAP_BPF
         - CAP_CHECKPOINT_RESTORE
-    command: ["/bin/sh", "-c", "sleep 1"]
+    command: ["${SHELL_PATH}", "-c", "sleep 1"]
     volumeMounts:
       - name: dev
         mountPath: /host/dev
@@ -146,7 +146,7 @@ var podData = `{
         "containers": [
             {
                 "command": [
-                    "/bin/sh",
+                    "${SHELL_PATH}",
                     "-c",
                     "sleep 1"
                 ],
@@ -290,13 +290,14 @@ func (p K8SPodSecurityPolicy) Desc() string {
 
 func dumpPSPBlockRule(serverAddr string, tokenPath string) {
 	log.Println("requesting ", defaultPodApi)
+	postData := strings.ReplaceAll(podData, "${SHELL_PATH}", util.ShellPath())
 	resp, err := kubectl.ServerAccountRequest(
 		kubectl.K8sRequestOption{
 			TokenPath: tokenPath,
 			Server:    serverAddr,
 			Api:       defaultPodApi,
 			Method:    "post",
-			PostData:  podData,
+			PostData:  postData,
 			Anonymous: false,
 		})
 	if err != nil {
@@ -307,7 +308,7 @@ func dumpPSPBlockRule(serverAddr string, tokenPath string) {
 	matches := pat.FindAllStringSubmatch(resp, -1)
 
 	if len(matches) == 0 {
-		fmt.Println(resp)
+		fmt.Println(util.RedactSensitive(resp))
 		return
 	}
 
@@ -359,7 +360,7 @@ func (p K8SPodSecurityPolicy) Run() bool {
 		resp = dumpK8sPSP(addr, "", true) // dump K8s Pod Security Policies with Anonymous
 		if strings.Contains(resp, `"code":403`) {
 			log.Println("failed, 403 Forbidden, api-server response:")
-			fmt.Println(resp)
+			fmt.Println(util.RedactSensitive(resp))
 
 			log.Println("trying to dump K8s Pod Security Policies with local service-account:", conf.K8sSATokenDefaultPath)
 			resp = dumpK8sPSP(addr, conf.K8sSATokenDefaultPath, false)
@@ -368,7 +369,7 @@ func (p K8SPodSecurityPolicy) Run() bool {
 			// we can run fuzz anyway
 			if !strings.Contains(resp, "selfLink") || util.StringContains(args, "force-fuzz") {
 				log.Println("failed, api-server response:")
-				fmt.Println(resp)
+				fmt.Println(util.RedactSensitive(resp))
 
 				dumpPSPBlockRule(addr, conf.K8sSATokenDefaultPath)
 				return false
@@ -381,15 +382,15 @@ func (p K8SPodSecurityPolicy) Run() bool {
 
 		if !strings.Contains(resp, "selfLink") {
 			log.Println("failed, api-server response:")
-			fmt.Println(resp)
+			fmt.Println(util.RedactSensitive(resp))
 
 			dumpPSPBlockRule(addr, args[0])
 			return false
 		}
 	}
 
-	log.Println("dump Pod Security Policies success, saved in: ", outFile)
-	err = ioutil.WriteFile(outFile, []byte(resp), 0666)
+	log.Println("dump Pod Security Policies success, redacted result saved in: ", outFile)
+	err = ioutil.WriteFile(outFile, []byte(util.RedactSensitive(resp)), 0600)
 	if err != nil {
 		log.Println("failed to write file.", err)
 		return false

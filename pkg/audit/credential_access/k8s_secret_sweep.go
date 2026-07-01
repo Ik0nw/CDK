@@ -31,6 +31,7 @@ import (
 	"github.com/cdk-team/CDK/pkg/cli"
 	"github.com/cdk-team/CDK/pkg/plugin"
 	"github.com/cdk-team/CDK/pkg/tool/kubectl"
+	"github.com/cdk-team/CDK/pkg/util"
 )
 
 var secretApi = "/api/v1/secrets"
@@ -99,13 +100,13 @@ func (p K8sSecretsDumpS) Run() bool {
 		resp = dumpK8sSecretsAnonymous(addr)
 		if !strings.Contains(resp, "selfLink") {
 			log.Println("failed, api-server response:")
-			fmt.Println(resp)
+			fmt.Println(util.RedactSensitive(resp))
 
 			log.Println("trying to dump K8s Secrets with local service-account:", conf.K8sSATokenDefaultPath)
 			resp = dumpK8sSecretsSA(addr, conf.K8sSATokenDefaultPath)
 			if !strings.Contains(resp, "selfLink") {
 				log.Println("failed, api-server response:")
-				fmt.Println(resp)
+				fmt.Println(util.RedactSensitive(resp))
 				return false
 			}
 		}
@@ -115,13 +116,13 @@ func (p K8sSecretsDumpS) Run() bool {
 		resp = dumpK8sSecretsSA(addr, args[0])
 		if !strings.Contains(resp, "selfLink") {
 			log.Println("failed, api-server response:")
-			fmt.Println(resp)
+			fmt.Println(util.RedactSensitive(resp))
 			return false
 		}
 	}
 
-	log.Println("dump secret success, saved in: ", outFile)
-	err = ioutil.WriteFile(outFile, []byte(resp), 0666)
+	log.Println("dump secret success, redacted result saved in: ", outFile)
+	err = ioutil.WriteFile(outFile, []byte(util.RedactSensitive(resp)), 0600)
 	if err != nil {
 		log.Println("failed to write file.", err)
 		return false

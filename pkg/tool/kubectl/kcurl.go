@@ -35,7 +35,7 @@ Options:
 
 Example: 
   ./cdk kcurl default get 'https://192.168.0.234:6443/api/v1/nodes'
-  ./cdk kcurl /var/run/secrets/kubernetes.io/serviceaccount/token get 'https://192.168.0.234:6443/api/v1/nodes'
+  ./cdk kcurl <service-account-token-path> get 'https://192.168.0.234:6443/api/v1/nodes'
   ./cdk kcurl anonymous post 'https://192.168.0.234:6443/api/v1/nodes' '{"apiVersion":"v1",...}'
 `
 

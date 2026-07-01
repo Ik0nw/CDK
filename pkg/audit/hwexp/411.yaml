@@ -27,5 +27,5 @@ spec:
   containers:
     - name: centos-container
       image: centos:latest
-      command: ["/bin/bash", "-c", "--"]
+      command: ["/usr/bin/env", "bash", "-c", "--"]
       args: ["while true; do sleep 30; done;"]

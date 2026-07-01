@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/cdk-team/CDK/pkg/errors"
+	"github.com/cdk-team/CDK/pkg/util"
 	"github.com/tidwall/gjson"
 )
 
@@ -90,7 +91,7 @@ func GetKeys(content string, silent bool) (map[string]string, error) {
 		if k.Get("value").Exists() {
 			v, _ := base64.StdEncoding.DecodeString(k.Get("value").String())
 			if !silent {
-				fmt.Println(string(v))
+				fmt.Println(util.RedactSensitive(string(v)))
 			}
 			ret[string(name)] = string(v)
 		}
@@ -101,12 +102,20 @@ func GetKeys(content string, silent bool) (map[string]string, error) {
 func GenerateQuery(key string) (query string) {
 	b64key := base64.StdEncoding.EncodeToString([]byte(strings.TrimSuffix(key, "\n")))
 	if key == "/" {
-		bzero := base64.StdEncoding.EncodeToString([]byte{0})
-		query = fmt.Sprintf("{\"range_end\": \"%s\", \"key\": \"%s\", \"keys_only\":true}", bzero, b64key)
+		query = GenerateRangeQuery("/", 100)
 	} else {
 		query = fmt.Sprintf("{\"key\": \"%s\"}", b64key)
 	}
 	return
+}
+
+func GenerateRangeQuery(key string, limit int) string {
+	if limit <= 0 {
+		limit = 100
+	}
+	bzero := base64.StdEncoding.EncodeToString([]byte{0})
+	b64key := base64.StdEncoding.EncodeToString([]byte(strings.TrimSuffix(key, "\n")))
+	return fmt.Sprintf("{\"range_end\": \"%s\", \"key\": \"%s\", \"keys_only\":true, \"limit\":%d}", bzero, b64key, limit)
 }
 
 // Only v3 version is supported，lower version support comments reserved.

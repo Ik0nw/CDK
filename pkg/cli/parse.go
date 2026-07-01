@@ -48,6 +48,7 @@ func ParseCDKMain() bool {
 	if len(os.Args) == 1 {
 		docopt.PrintHelpAndExit(nil, BannerContainer)
 	}
+	setupAuditLog()
 
 	// nc needs -v and -h , parse it outside
 	if os.Args[1] == "nc" {

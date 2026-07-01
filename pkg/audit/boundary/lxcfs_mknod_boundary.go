@@ -142,7 +142,8 @@ func ExploitLXCFS() bool {
 			log.Printf("mknod err: %v", err)
 			return false
 		}
-		log.Printf("check completed, %s", runtimeBlockDeviceBrowseHint(deviceFsType, resultName))
+		defer func() { _ = os.Remove(resultName) }()
+		log.Printf("check completed, block device probe node was created and scheduled for cleanup: %s (%s)", resultName, deviceFsType)
 		return true
 	}
 	return false

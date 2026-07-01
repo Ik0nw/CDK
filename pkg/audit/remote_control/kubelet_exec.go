@@ -36,6 +36,7 @@ import (
 	"github.com/cdk-team/CDK/pkg/cli"
 	"github.com/cdk-team/CDK/pkg/plugin"
 	"github.com/cdk-team/CDK/pkg/tool/kubectl"
+	"github.com/cdk-team/CDK/pkg/util"
 	"github.com/tidwall/gjson"
 )
 
@@ -147,8 +148,14 @@ func execAction(target, token, cmd string) bool {
 		return false
 	}
 	namespace, pod, container := params[1], params[2], params[3]
-	req_url := fmt.Sprintf("%s://%s/exec/%s/%s/%s?command=/bin/sh&command=-c&command=%s&error=1&output=1",
-		u.Scheme, u.Host, namespace, pod, container, url.QueryEscape(cmd))
+	query := url.Values{}
+	query.Add("command", util.ShellPath())
+	query.Add("command", "-c")
+	query.Add("command", cmd)
+	query.Set("error", "1")
+	query.Set("output", "1")
+	req_url := fmt.Sprintf("%s://%s/exec/%s/%s/%s?%s",
+		u.Scheme, u.Host, namespace, pod, container, query.Encode())
 
 	httpclient := &http.Client{
 		Transport: &http.Transport{

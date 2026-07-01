@@ -31,6 +31,7 @@ import (
 	"github.com/cdk-team/CDK/pkg/cli"
 	"github.com/cdk-team/CDK/pkg/plugin"
 	"github.com/cdk-team/CDK/pkg/tool/kubectl"
+	"github.com/cdk-team/CDK/pkg/util"
 )
 
 var configmapApi = "/api/v1/configmaps"
@@ -105,13 +106,13 @@ func (p dumpK8sConfigmapS) Run() bool {
 		resp = dumpK8sConfigmapAnonymous(addr)
 		if !strings.Contains(resp, "selfLink") {
 			log.Println("failed, api-server response:")
-			fmt.Println(resp)
+			fmt.Println(util.RedactSensitive(resp))
 
 			log.Println("trying to dump K8s configmap with local service-account:", conf.K8sSATokenDefaultPath)
 			resp = dumpK8sConfigmapSA(addr, conf.K8sSATokenDefaultPath)
 			if !strings.Contains(resp, "selfLink") {
 				log.Println("failed, api-server response:")
-				fmt.Println(resp)
+				fmt.Println(util.RedactSensitive(resp))
 				return false
 			}
 		}
@@ -121,13 +122,13 @@ func (p dumpK8sConfigmapS) Run() bool {
 		resp = dumpK8sConfigmapSA(addr, args[0])
 		if !strings.Contains(resp, "selfLink") {
 			log.Println("failed, api-server response:")
-			fmt.Println(resp)
+			fmt.Println(util.RedactSensitive(resp))
 			return false
 		}
 	}
 
-	log.Println("dump configmap success, saved in: ", outFile)
-	err = ioutil.WriteFile(outFile, []byte(resp), 0666)
+	log.Println("dump configmap success, redacted result saved in: ", outFile)
+	err = ioutil.WriteFile(outFile, []byte(util.RedactSensitive(resp)), 0600)
 	if err != nil {
 		log.Println("failed to write file.", err)
 		return false

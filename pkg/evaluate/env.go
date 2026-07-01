@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/cdk-team/CDK/conf"
 )
 
 // UIDMapEntry describes one line of /proc/self/uid_map or
@@ -311,8 +313,7 @@ func detectHasK8sAPI(env *Env) {
 }
 
 func detectHasK8sSA(env *Env) {
-	tokenPath := filepath.Join(envRoot,
-		"var/run/secrets/kubernetes.io/serviceaccount/token")
+	tokenPath := filepath.Join(envRoot, strings.TrimPrefix(conf.K8sSATokenDefaultPath, "/"))
 	fi, err := os.Stat(tokenPath)
 	if err == nil && fi.Size() > 0 {
 		env.HasK8sSA = true

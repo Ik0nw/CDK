@@ -135,7 +135,7 @@ var CloudAPI = []cloudAPIS{
 	},
 	{
 		CloudProvider: "Google Cloud",
-		API:           "http://metadata.google.internal/computeMetadata/v1/instance/disks/?recursive=true",
+		API:           "http://metadata.google.internal/computeMetadata/v1/instance/disks/",
 		ResponseMatch: "deviceName",
 		DocURL:        "https://cloud.google.com/compute/docs/storing-retrieving-metadata",
 	},
