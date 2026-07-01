@@ -327,7 +327,6 @@ func CheckSeccompDeepInspect(ctx *Context) error {
 	}
 	status := readFileLines("proc/self/status")
 	seccompMode := "0"
-	seccompFiltered := false
 	for _, ln := range status {
 		if strings.HasPrefix(ln, "Seccomp:") {
 			fields := strings.Fields(ln)
@@ -336,20 +335,29 @@ func CheckSeccompDeepInspect(ctx *Context) error {
 			}
 		}
 	}
-	if seccompMode == "2" {
-		seccompFiltered = true
-	}
 	env := ctx.Env
 	if env == nil {
 		env = DetectEnv()
 	}
 	fmt.Printf("seccomp deep inspect (12 escape-relevant syscalls)  mode=%s  privileged=%v\n",
 		seccompMode, env.Privileged)
-	if !seccompFiltered {
-		fmt.Printf("\t[GREEN] No SECCOMP_MODE_FILTER loaded — all 12 syscalls reach the kernel.\n")
-		fmt.Printf("\t        (Capability / LSM gates still apply; no seccomp side-channel blocking.)\n")
-		return nil
+	switch seccompMode {
+	case "0":
+		fmt.Printf("\t[GREEN] seccomp disabled (mode 0) — every syscall reaches the kernel unfiltered.\n")
+		fmt.Printf("\t        Exploit reliability is governed by capabilities + LSMs only.\n")
+	case "1":
+		fmt.Printf("\t[AMBER] seccomp strict (mode 1) — only read/write/_exit/sigreturn allowed.\n")
+		fmt.Printf("\t        All 12 probes will be BLOCKED; listed below for completeness.\n")
+	case "2":
+		fmt.Printf("\tINFO   : SECCOMP_MODE_FILTER active — BPF program decides each syscall.\n")
+		fmt.Printf("\t        GREEN = kernel-refused-args (BPF let it through); AMBER = BPF blocked.\n")
 	}
+
+	// NOTE: we always run the full 12-probe matrix regardless of mode so the
+	// operator gets a complete table.  "mode 0 (disabled)" is the case we used
+	// to short-circuit, which produced an empty output cell in privileged
+	// containers; the per-errno evidence is still useful as a capability/
+	// LSM sanity check so we no longer early-return.
 
 	// Ordering: mount-escape family first, then namespace, then kernel-
 	// internal (keyring / lkm).  Matches operator thinking order.
