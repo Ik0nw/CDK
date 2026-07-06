@@ -17,12 +17,11 @@ limitations under the License.
 package util
 
 import (
-	"bufio"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/cdk-team/CDK/pkg/errors"
 )
@@ -37,20 +36,19 @@ func IsDirectory(path string) bool {
 
 // ReadLines reads a whole file into memory
 // and returns a slice of its lines.
-// from https://stackoverflow.com/questions/5884154/read-text-file-into-string-array-and-write
+// Uses StealthReadFile to avoid libc open/read hooks.
 func ReadLines(path string) ([]string, error) {
-	file, err := os.Open(path)
+	data, err := StealthReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
-
 	var lines []string
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
+	for _, line := range strings.Split(string(data), "\n") {
+		if line != "" {
+			lines = append(lines, line)
+		}
 	}
-	return lines, scanner.Err()
+	return lines, nil
 }
 
 func FileExist(path string) bool {
@@ -90,12 +88,7 @@ func RewriteFile(path string, content string, perm os.FileMode) {
 }
 
 func WriteFile(path string, content string) error {
-	var d = []byte(content)
-	err := ioutil.WriteFile(path, d, 0666)
-	if err != nil {
-		return err
-	}
-	return nil
+	return os.WriteFile(path, []byte(content), 0666)
 }
 
 func WriteFileAdd(path string, content string) error {

@@ -1,0 +1,57 @@
+2026/07/02 19:05:30 [audit] log_file=cdk-audit-20260702T110530Z.log
+2026/07/02 19:05:30 [audit] start_time=2026-07-02T11:05:30Z
+2026/07/02 19:05:30 [audit] argv=/tmp/cdk-test eva --no-gating --json
+2026/07/02 19:05:30 [audit] operator=Ikonw auth_id=unset host=Ikonw-de-macbook binary_sha256=faecca33e99ed5c89eccac5435743dea9415282cc34359e67f95c1062920b9ab
+2026/07/02 19:05:30 [runtime-fingerprint] container runtimes: 0, hypervisors: 0, linuxkit=false
+2026/07/02 19:05:30 current dir: /Users/Ikonw/redteam/CDK
+2026/07/02 19:05:30 current user: Ikonw uid: 501 gid: 20 home: /Users/Ikonw
+2026/07/02 19:05:30 hostname: Ikonw-de-macbook
+2026/07/02 19:05:30 Standalone Workstation darwin 26.5.1 kernel: 25.5.0
+2026/07/02 19:05:30 Setuid files found:
+2026/07/02 19:05:30 sensitive env found:
+	SSH_AUTH_SOCK=<redacted:sha256:5d265765fd53>
+2026/07/02 19:05:30 sensitive env found:
+	GOPATH=<redacted:sha256:5fb0bc9ad311>
+2026/07/02 19:05:30 service found in process:
+	66775	66772	Python
+2026/07/02 19:05:30 service found in process:
+	49946	49933	java
+2026/07/02 19:05:30 service found in process:
+	49505	49484	java
+2026/07/02 19:05:30 service found in process:
+	27661	27648	java
+2026/07/02 19:05:30 service found in process:
+	23067	23048	java
+2026/07/02 19:05:30 service found in process:
+	83682	83668	java
+2026/07/02 19:05:30 service found in process:
+	78383	78364	java
+2026/07/02 19:05:30 service found in process:
+	45300	45281	java
+2026/07/02 19:05:30 service found in process:
+	18318	18307	java
+2026/07/02 19:05:30 service found in process:
+	16823	16812	java
+2026/07/02 19:05:30 service found in process:
+	10450	1	ssh-agent
+2026/07/02 19:05:30 service found in process:
+	973	1	JavaApplicationS
+2026/07/02 19:05:30 service found in process:
+	579	1	ruby
+2026/07/02 19:05:30 service found in process:
+	591	1	com.docker.vmnet
+2026/07/02 19:05:30 open /proc/self/status: no such file or directory
+2026/07/02 19:05:30 available commands:
+	curl,wget,nc,kubectl,docker,find,ps,java,python3,node,npm,httpd,ssh,git,ed,mount,fdisk,gcc,g++,make,base64,perl,sudo,ruby
+2026/07/02 19:05:30 err found while open /proc/net/unix
+2026/07/02 19:05:30 err found while open /proc/sys/net/ipv4/conf/all/route_localnet: open /proc/sys/net/ipv4/conf/all/route_localnet: no such file or directory
+2026/07/02 19:05:30 checking if api-server allows system:anonymous request.
+2026/07/02 19:05:31 failed to dial Volcano Engine (Volcengine) API.
+2026/07/02 19:05:32 failed to dial Alibaba Cloud API.
+2026/07/02 19:05:33 failed to dial Azure API.
+2026/07/02 19:05:33 failed to dial Google Cloud API.
+2026/07/02 19:05:33 failed to dial Tencent Cloud API.
+2026/07/02 19:05:34 failed to dial OpenStack API.
+2026/07/02 19:05:35 failed to dial Amazon Web Services (AWS) API.
+2026/07/02 19:05:36 failed to dial ucloud API.
+2026/07/02 19:05:36 refer: https://github.com/mzet-/linux-exploit-suggester

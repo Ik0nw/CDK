@@ -19,9 +19,9 @@ package probe
 import (
 	"fmt"
 	"github.com/cdk-team/CDK/conf"
-	"os/exec"
 	"strconv"
 	"strings"
+	"syscall"
 )
 
 type FromTo struct {
@@ -101,16 +101,10 @@ func GetTaskIPList(ip string) (base string, start, end int, err error) {
 }
 
 func Ulimit() int64 {
-	out, err := exec.Command("ulimit", "-n").Output()
-	if err != nil {
-		panic(err)
+	var rlim syscall.Rlimit
+	if err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rlim); err != nil {
+		// Fallback: try /proc/self/limits parse
+		return 1024
 	}
-
-	s := strings.TrimSpace(string(out))
-
-	i, err := strconv.ParseInt(s, 10, 64)
-	if err != nil {
-		panic(err)
-	}
-	return i
+	return int64(rlim.Cur)
 }

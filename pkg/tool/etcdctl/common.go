@@ -21,7 +21,7 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -65,7 +65,7 @@ func DoRequest(opt EtcdRequestOption) (string, error) {
 		return "", &errors.CDKRuntimeError{Err: err, CustomMsg: "err found in post request."}
 	}
 
-	content, err := ioutil.ReadAll(resp.Body)
+	content, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", &errors.CDKRuntimeError{Err: err, CustomMsg: "err found in post request."}
 	}

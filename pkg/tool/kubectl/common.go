@@ -20,7 +20,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -79,7 +79,7 @@ func ApiServerAddr() (string, error) {
 }
 
 func GetServiceAccountToken(tokenPath string) (string, error) {
-	token, err := ioutil.ReadFile(tokenPath)
+	token, err := util.StealthReadFile(tokenPath)
 	if err != nil {
 		return "", err
 	}
@@ -166,7 +166,7 @@ func ServerAccountRequest(opts K8sRequestOption) (string, error) {
 	}
 	//defer resp.Body.Close()
 
-	content, err := ioutil.ReadAll(resp.Body)
+	content, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", &errors.CDKRuntimeError{Err: err, CustomMsg: "err found in post request."}
 	}

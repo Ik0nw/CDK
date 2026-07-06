@@ -21,8 +21,8 @@ package credential_access
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
+	"os"
 	"strings"
 
 	"github.com/cdk-team/CDK/pkg/audit/base"
@@ -128,7 +128,7 @@ func (p dumpK8sConfigmapS) Run() bool {
 	}
 
 	log.Println("dump configmap success, redacted result saved in: ", outFile)
-	err = ioutil.WriteFile(outFile, []byte(util.RedactSensitive(resp)), 0600)
+	err = os.WriteFile(outFile, []byte(util.RedactSensitive(resp)), 0600)
 	if err != nil {
 		log.Println("failed to write file.", err)
 		return false

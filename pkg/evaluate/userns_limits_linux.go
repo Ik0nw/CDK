@@ -21,10 +21,11 @@ package evaluate
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/cdk-team/CDK/pkg/util"
 )
 
 // T50: system.userns_limits — user-namespace limits + current-userns level +
@@ -47,7 +48,7 @@ import (
 func usernsOut() *os.File { return os.Stdout }
 
 func readInt(path string) int {
-	data, err := ioutil.ReadFile(path)
+	data, err := util.StealthReadFile(path)
 	if err != nil {
 		return -1
 	}
@@ -75,7 +76,7 @@ func parseSpaceQuad(line string) []int {
 }
 
 func statusField(path, key string) string {
-	data, err := ioutil.ReadFile(path)
+	data, err := util.StealthReadFile(path)
 	if err != nil {
 		return ""
 	}
@@ -90,7 +91,7 @@ func statusField(path, key string) string {
 // nsLevels counts depth in NStgid line (each space-separated number is one
 // ancestor NS level).  Returns -1 if unreadable.
 func nsLevels() int {
-	field := statusField("/proc/self/status", "NStgid")
+	field := statusField(util.ProcSelfStatusPath(), "NStgid")
 	if field == "" {
 		return -1
 	}
@@ -99,7 +100,7 @@ func nsLevels() int {
 
 // firstLine returns first line of a file trimmed.
 func firstLine(path string) string {
-	data, err := ioutil.ReadFile(path)
+	data, err := util.StealthReadFile(path)
 	if err != nil {
 		return ""
 	}
@@ -111,16 +112,16 @@ func firstLine(path string) string {
 func EnumerateUserNsLimits() {
 	fmt.Fprintln(usernsOut(), "system.userns_limits — user-namespace limits, nesting depth, UID mapping:")
 
-	unprivClone := readInt("/proc/sys/kernel/unprivileged_userns_clone")
-	maxNS := readInt("/proc/sys/user/max_user_namespaces")
-	overflowUID := readInt("/proc/sys/kernel/overflowuid")
-	overflowGID := readInt("/proc/sys/kernel/overflowgid")
-	uidMap := firstLine("/proc/self/uid_map")
-	gidMap := firstLine("/proc/self/gid_map")
-	setgroups := firstLine("/proc/self/setgroups")
+	unprivClone := readInt(util.ProcSysKernelUnprivUserNsClonePath())
+	maxNS := readInt(util.ProcSysUserMaxUserNsPath())
+	overflowUID := readInt(util.ProcSysKernelOverflowuidPath())
+	overflowGID := readInt(util.ProcSysKernelOverflowgidPath())
+	uidMap := firstLine(util.ProcSelfUidMapPath())
+	gidMap := firstLine(util.ProcSelfGidMapPath())
+	setgroups := firstLine(util.ProcSelfSetgroupsPath())
 	depth := nsLevels()
-	uidFields := parseSpaceQuad("Uid: " + statusField("/proc/self/status", "Uid"))
-	gidFields := parseSpaceQuad("Gid: " + statusField("/proc/self/status", "Gid"))
+	uidFields := parseSpaceQuad("Uid: " + statusField(util.ProcSelfStatusPath(), "Uid"))
+	gidFields := parseSpaceQuad("Gid: " + statusField(util.ProcSelfStatusPath(), "Gid"))
 
 	// --- Table 1: host-wide sysctl gates --------------------------------
 	fmt.Fprintln(usernsOut(), "\tHost-wide user-namespace sysctl gates:")

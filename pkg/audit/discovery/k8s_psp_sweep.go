@@ -18,8 +18,8 @@ package discovery
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
+	"os"
 	"regexp"
 	"strings"
 
@@ -390,7 +390,7 @@ func (p K8SPodSecurityPolicy) Run() bool {
 	}
 
 	log.Println("dump Pod Security Policies success, redacted result saved in: ", outFile)
-	err = ioutil.WriteFile(outFile, []byte(util.RedactSensitive(resp)), 0600)
+	err = os.WriteFile(outFile, []byte(util.RedactSensitive(resp)), 0600)
 	if err != nil {
 		log.Println("failed to write file.", err)
 		return false

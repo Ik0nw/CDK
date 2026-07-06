@@ -2,8 +2,9 @@ package escaping
 
 import (
 	"fmt"
-	"os/exec"
 	"strings"
+
+	"github.com/cdk-team/CDK/pkg/util"
 )
 
 type toolLookupFunc func(string) bool
@@ -55,7 +56,21 @@ func blockDeviceMountHint(fsType, devicePath string) string {
 	return fmt.Sprintf("mkdir -p /tmp/cdkmnt && mount -o ro %s /tmp/cdkmnt", devicePath)
 }
 
+// toolExists checks whether a named binary is available in common system
+// paths. Uses StealthFileExists to avoid libc PATH resolution hooks.
 func toolExists(name string) bool {
-	_, err := exec.LookPath(name)
-	return err == nil
+	paths := []string{
+		"/usr/bin/" + name,
+		"/bin/" + name,
+		"/usr/sbin/" + name,
+		"/sbin/" + name,
+		"/usr/local/bin/" + name,
+		"/usr/local/sbin/" + name,
+	}
+	for _, p := range paths {
+		if util.StealthFileExists(p) {
+			return true
+		}
+	}
+	return false
 }

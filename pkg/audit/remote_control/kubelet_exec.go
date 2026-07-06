@@ -22,7 +22,7 @@ package remote_control
 import (
 	"crypto/tls"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -186,7 +186,7 @@ func execAction(target, token, cmd string) bool {
 	if err != nil {
 		return false
 	}
-	raw, err := ioutil.ReadAll(resp.Body)
+	raw, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return false
 	}

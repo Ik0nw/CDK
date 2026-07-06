@@ -1,0 +1,4 @@
+2026/07/02 19:06:41 [audit] log_file=cdk-audit-20260702T110641Z.log
+2026/07/02 19:06:41 [audit] start_time=2026-07-02T11:06:41Z
+2026/07/02 19:06:41 [audit] argv=/tmp/cdk-test --help
+2026/07/02 19:06:41 [audit] operator=Ikonw auth_id=unset host=Ikonw-de-macbook binary_sha256=faecca33e99ed5c89eccac5435743dea9415282cc34359e67f95c1062920b9ab

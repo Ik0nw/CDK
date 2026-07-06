@@ -21,7 +21,6 @@ import (
 	"context"
 	"github.com/cdk-team/CDK/pkg/errors"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"strings"
@@ -68,6 +67,6 @@ func HttpSendJson(method string, url string, data string) (string, error) {
 		return "", &errors.CDKRuntimeError{Err: err, CustomMsg: "HTTP Request failed."}
 	}
 	defer resp.Body.Close()
-	body, _ := ioutil.ReadAll(resp.Body)
+	body, _ := io.ReadAll(resp.Body)
 	return string(body), nil
 }

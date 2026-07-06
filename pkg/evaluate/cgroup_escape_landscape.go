@@ -22,6 +22,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/cdk-team/CDK/pkg/util"
 )
 
 // cgroupEscapeChecks lists the classic cgroup-v1-only escape primitives that
@@ -127,7 +129,7 @@ func probeCgroupWritable(controller, selfRel string) (writable bool, mountPath, 
 			// option string.  Accept both, keyed off the canonical mount
 			// path "/sys/fs/cgroup".
 			if fsType == "cgroup2" ||
-				(fsType == "cgroup" && mountP == "/sys/fs/cgroup") {
+				(fsType == "cgroup" && mountP == util.CgroupRoot()) {
 				mountPath = mountP
 				break
 			}
@@ -167,14 +169,14 @@ func probeCgroupWritable(controller, selfRel string) (writable bool, mountPath, 
 // randHex8 returns an 8-char lowercase hex string.  Uses crypto-free RNG
 // because we only need filesystem non-collision inside this single dir.
 func randHex8() string {
-	f, err := os.Open("/dev/urandom")
+	fd, err := util.StealthOpen(util.DevUrandomPath(), 0)
 	if err != nil {
 		// fall back: pid + timestamp — still unique enough
 		return fmt.Sprintf("p%d%x", os.Getpid(), os.Getpid()*31)
 	}
-	defer f.Close()
+	defer util.StealthClose(fd)
 	var b [4]byte
-	_, _ = f.Read(b[:])
+	_, _ = util.StealthRead(fd, b[:])
 	return fmt.Sprintf("%02x%02x%02x%02x", b[0], b[1], b[2], b[3])
 }
 

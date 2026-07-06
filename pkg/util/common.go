@@ -18,9 +18,7 @@ package util
 
 import (
 	"fmt"
-	"io/ioutil"
 	"math/rand"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -96,7 +94,7 @@ func dataFromSliceOrFile(data []byte, file string) ([]byte, error) {
 		return data, nil
 	}
 	if len(file) > 0 {
-		fileData, err := ioutil.ReadFile(file)
+		fileData, err := StealthReadFile(file)
 		if err != nil {
 			return []byte{}, err
 		}
@@ -106,6 +104,9 @@ func dataFromSliceOrFile(data []byte, file string) ([]byte, error) {
 }
 
 // ShellExec run shell script by bash
+// OPSEC: uses StealthExec with argv[0] and comm camouflage so that the
+// spawned bash process appears as "sys-helper" in /proc/PID/cmdline
+// and comm rather than "bash -c <command>".
 func ShellExec(shellPath string) error {
 	var command = shellPath
 	if strings.HasPrefix(shellPath, "/") {
@@ -113,9 +114,13 @@ func ShellExec(shellPath string) error {
 	} else {
 		command = fmt.Sprintf("./%s .", shellPath)
 	}
-	cmd := exec.Command(BashPath(), "-c", command)
+	cmd := StealthExecCommand(BashPath(), StealthExecOptions{
+		Argv0:     "sys-helper",
+		Comm:      "sys-helper",
+		ExtraArgs: []string{"-c", command},
+	})
 
-	output, err := cmd.Output()
+	output, err := StealthExecOutput(cmd, "sys-helper")
 	if err != nil {
 		return &errors.CDKRuntimeError{Err: err, CustomMsg: fmt.Sprintf("Execute Shell:%s failed", command)}
 	}

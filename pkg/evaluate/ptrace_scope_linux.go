@@ -21,10 +21,11 @@ package evaluate
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/cdk-team/CDK/pkg/util"
 )
 
 // T56: security.ptrace_scope — kernel.yama.ptrace_scope value + per-process
@@ -53,7 +54,7 @@ import (
 func ptraceScopeOut() *os.File { return os.Stdout }
 
 func readYamaInt(name string) int {
-	data, err := ioutil.ReadFile("/proc/sys/kernel/yama/" + name)
+	data, err := util.StealthReadFile(util.ProcSysKernelYamaPath() + "/" + name)
 	if err != nil {
 		return -1
 	}
@@ -121,11 +122,11 @@ func EnumeratePtraceScope() {
 
 	// --- Table 2: process-specific Seccomp / Dumpable fields ----------
 	fmt.Fprintln(ptraceScopeOut(), "\tPer-process state (/proc/self/status):")
-	seccompField := statusField("/proc/self/status", "Seccomp")
+	seccompField := statusField(util.ProcSelfStatusPath(), "Seccomp")
 	if seccompField != "" {
 		fmt.Fprintf(ptraceScopeOut(), "\t\tSeccomp = %s\n", seccompField)
 	}
-	dumpable := statusField("/proc/self/status", "Dumpable")
+	dumpable := statusField(util.ProcSelfStatusPath(), "Dumpable")
 	if dumpable != "" {
 		col := "  ?  "
 		switch dumpable {

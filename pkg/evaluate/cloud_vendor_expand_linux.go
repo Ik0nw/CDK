@@ -21,9 +21,10 @@ package evaluate
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
+
+	"github.com/cdk-team/CDK/pkg/util"
 )
 
 // T57: cloud.vendor_expand — explicit first-party Volcengine/BytePlus vendor
@@ -166,7 +167,7 @@ func readEnvRel(path string) string {
 			root += "/"
 		}
 	}
-	data, err := ioutil.ReadFile(root + path)
+	data, err := util.StealthReadFile(root + path)
 	if err != nil {
 		return ""
 	}

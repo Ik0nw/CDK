@@ -102,8 +102,15 @@ func ParseCDKMain() bool {
 				noGating = b
 			}
 		}
+		stealth := false
+		if raw, ok := Args["--stealth"]; ok {
+			if b, ok2 := raw.(bool); ok2 {
+				stealth = b
+			}
+		}
 		ctx := evaluate.NewContext(nil)
 		ctx.NoGating = noGating
+		ctx.Stealth = stealth
 		ctx.JSON = jsonRequested
 		if err := evaluate.NewEvaluator().RunProfile(profileID, ctx); err != nil {
 			log.Printf("evaluate profile %q failed: %v", profileID, err)

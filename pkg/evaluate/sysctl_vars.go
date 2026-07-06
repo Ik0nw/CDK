@@ -17,15 +17,16 @@ limitations under the License.
 package evaluate
 
 import (
-	"io/ioutil"
 	"log"
 	"strings"
+
+	"github.com/cdk-team/CDK/pkg/util"
 )
 
-var RouteLocalNetProcPath = "/proc/sys/net/ipv4/conf/all/route_localnet"
+var RouteLocalNetProcPath = util.ProcSysNetRouteLocalnet()
 
 func CheckRouteLocalNetworkValue() {
-	data, err := ioutil.ReadFile(RouteLocalNetProcPath)
+	data, err := util.StealthReadFile(RouteLocalNetProcPath)
 	if err != nil {
 		log.Printf("err found while open %s: %v\n", RouteLocalNetProcPath, err)
 		return

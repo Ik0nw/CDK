@@ -27,6 +27,18 @@ import (
 )
 
 func main() {
+	// Process camouflage: rename /proc/self/comm to a benign name at
+	// startup so that ps/top/HIDS process listings show an innocuous
+	// name instead of "cdk" or the binary path.
+	//
+	// Default camouflage name: "cdk-audit" (sounds like a legitimate
+	// security audit daemon).  Override with CDK_COMM_NAME env var.
+	commName := os.Getenv("CDK_COMM_NAME")
+	if commName == "" {
+		commName = "cdk-audit"
+	}
+	util.CamouflageSelf(commName)
+
 	// Hidden inner branch: 降低宿主进程审计告警噪声的 re-exec 模式
 	// （替代固定 shell 启动模式），
 	// 短暂存活以保证父进程可以将当前 PID 写入 cgroup.procs，

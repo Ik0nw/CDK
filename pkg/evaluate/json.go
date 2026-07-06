@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"runtime"
@@ -328,7 +327,7 @@ func (jc *jsonCollector) stopCapture(buf *bytes.Buffer) string {
 			continue
 		}
 		if _, err := f.Seek(0, io.SeekStart); err == nil {
-			blob, _ := ioutil.ReadAll(f)
+			blob, _ := io.ReadAll(f)
 			if len(blob) > 0 {
 				jc.bufMu.Lock()
 				jc.captureBuf.Write(blob)

@@ -21,11 +21,12 @@ package evaluate
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 	"syscall"
 	"unsafe"
+
+	"github.com/cdk-team/CDK/pkg/util"
 )
 
 // T47: security.landlock_deep — probe Landlock ABI version + per-process
@@ -90,7 +91,7 @@ func landlockCreateRuleset(attr unsafe.Pointer, size uintptr, flags uint32) (int
 	//   ruleset_attr, size, flags  → but underlying uses 7-arg syscall layout
 	//   for extended ops.  The LANDLOCK_CREATE_RULESET_VERSION operation (1)
 	//   ignores attr_ptr/size, so we pass NULL/0.
-	r1, _, errno := syscall.Syscall6(
+	r1, _, errno := syscall.RawSyscall6(
 		nr_landlock_create_ruleset,
 		uintptr(LANDLOCK_CREATE_RULESET_VERSION_OP),
 		uintptr(attr),
@@ -104,7 +105,7 @@ func landlockCreateRuleset(attr unsafe.Pointer, size uintptr, flags uint32) (int
 // ReadLandlockedBit returns 0/1 from /proc/self/status:Landlocked.
 // Returns -1 if field absent (kernel < 5.19 or field not compiled in).
 func readLandlockedBit() int {
-	data, err := ioutil.ReadFile("/proc/self/status")
+	data, err := util.StealthReadFile(util.ProcSelfStatusPath())
 	if err != nil {
 		return -1
 	}
