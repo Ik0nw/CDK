@@ -18,16 +18,34 @@ package evaluate
 
 import (
 	"github.com/cdk-team/CDK/conf"
+	"github.com/cdk-team/CDK/pkg/util"
 	"log"
-	"os/exec"
 	"strings"
 )
+
+// commandExists checks whether a named binary is available in common system
+// paths. Uses StealthFileExists to avoid libc PATH resolution hooks.
+func commandExists(name string) bool {
+	paths := []string{
+		"/usr/bin/" + name,
+		"/bin/" + name,
+		"/usr/sbin/" + name,
+		"/sbin/" + name,
+		"/usr/local/bin/" + name,
+		"/usr/local/sbin/" + name,
+	}
+	for _, p := range paths {
+		if util.StealthFileExists(p) {
+			return true
+		}
+	}
+	return false
+}
 
 func SearchAvailableCommands() {
 	ans := []string{}
 	for _, cmd := range conf.LinuxCommandChecklist {
-		_, err := exec.LookPath(cmd)
-		if err == nil {
+		if commandExists(cmd) {
 			ans = append(ans, cmd)
 		}
 	}

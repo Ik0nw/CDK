@@ -21,9 +21,10 @@ package evaluate
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
+
+	"github.com/cdk-team/CDK/pkg/util"
 )
 
 // T52: security.apparmor_deep — AppArmor LSM state + per-process profile
@@ -74,7 +75,7 @@ func appArmorOut() *os.File { return os.Stdout }
 
 // readAAFile returns the trimmed contents of path, or "" on any error.
 func readAAFile(path string) string {
-	data, err := ioutil.ReadFile(path)
+	data, err := util.StealthReadFile(path)
 	if err != nil {
 		return ""
 	}
@@ -129,8 +130,7 @@ func containerAAProfileMatch(name string) bool {
 // Returns (label, mode, source) where source is "apparmor/current",
 // "attr/current", or "" (no usable label).
 func selfAALabel() (label, mode, source string) {
-	const aaPath = "/proc/self/attr/apparmor/current"
-	if raw := readAAFile(aaPath); raw != "" {
+	if raw := readAAFile(util.ProcSelfAttrAppArmorCurrentPath()); raw != "" {
 		// Existence of this file proves AppArmor is active; trust it
 		// unconditionally (even an "unconfined" label is meaningful).
 		n, m := parseAAProfileLine(raw)
@@ -141,8 +141,7 @@ func selfAALabel() (label, mode, source string) {
 		return n, m, "apparmor/current"
 	}
 
-	const fallback = "/proc/self/attr/current"
-	if raw := readAAFile(fallback); raw != "" {
+	if raw := readAAFile(util.ProcSelfAttrCurrentPath()); raw != "" {
 		// Only trust the generic attr file when the content is
 		// AppArmor-shaped; otherwise it may carry a SELinux context.
 		if strings.Contains(raw, " (enforce)") ||
@@ -178,7 +177,7 @@ func ProbeAppArmorDeep() {
 	fmt.Fprintln(appArmorOut(), "security.apparmor_deep — AppArmor LSM state + per-process profile + enforce/complain mode:")
 
 	// --- Probe 1: kernel enabled flag --------------------------------
-	enabledRaw := readAAFile("/sys/module/apparmor/parameters/enabled")
+	enabledRaw := readAAFile(util.AppArmorEnabledPath())
 	enabled := strings.ToUpper(enabledRaw)
 	switch enabled {
 	case "Y":
@@ -191,7 +190,7 @@ func ProbeAppArmorDeep() {
 	}
 
 	// --- Probe 2: loaded profiles + container matches ----------------
-	profData := readAAFile("/sys/kernel/security/apparmor/profiles")
+	profData := readAAFile(util.SysKernelSecurityAppArmorProfilesPath())
 	profCount := 0
 	var containerMatches []string
 	if profData != "" {

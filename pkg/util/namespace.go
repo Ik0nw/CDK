@@ -17,7 +17,6 @@ limitations under the License.
 package util
 
 import (
-	"io/ioutil"
 	"strings"
 
 	"github.com/cdk-team/CDK/pkg/errors"
@@ -35,7 +34,7 @@ import (
 //	We can not check the sysctl file in other distros, test in CentOS Linux release 8.4.2105 (Core).
 func CheckUnpriUserNS() error {
 
-	data, err := ioutil.ReadFile("/proc/sys/kernel/unprivileged_userns_clone")
+	data, err := StealthReadFile(ProcSysKernelUnprivUserNsClonePath())
 	if err != nil {
 		return &errors.CDKRuntimeError{Err: err, CustomMsg: "check prerequisites error."}
 	}

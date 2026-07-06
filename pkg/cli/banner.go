@@ -42,9 +42,9 @@ Find tutorial, configuration and use-case in (internal documentation)
 
 var BannerContainerTpl = BannerHeader + `
 %s
-  cdk eva [--no-gating] [--json]
-  cdk eva [--full] [--no-gating] [--json]
-  cdk evaluate [--full] [--no-gating] [--json]
+  cdk eva [--no-gating] [--stealth] [--json]
+  cdk eva [--full] [--no-gating] [--stealth] [--json]
+  cdk evaluate [--full] [--no-gating] [--stealth] [--json]
   cdk run (--list | <check> [<args>...])
   cdk <tool> [<args>...]
 
@@ -75,6 +75,7 @@ var BannerContainerTpl = BannerHeader + `
   -v --version  Show version.
   --profile=<name> Select evaluation profile (basic, extended, additional).
   --no-gating   Disable preflight prereq gating (loud, runs ALL checks regardless of preflight).
+  --stealth     OPSEC-conscious mode: adds jitter between checks, skips network/syscall probes (avoids HIDS/EDR).
   --json        Emit a single structured JSON report to stdout (v1 schema).
 `
 

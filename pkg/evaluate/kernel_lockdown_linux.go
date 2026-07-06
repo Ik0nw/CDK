@@ -21,10 +21,11 @@ package evaluate
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/cdk-team/CDK/pkg/util"
 )
 
 // T54: security.kernel_lockdown — Linux kernel lockdown LSM mode plus the
@@ -61,7 +62,7 @@ func lockdownOut() *os.File { return os.Stdout }
 // lockdownReadTrim reads a (small sysfs/procfs) file and returns its
 // whitespace-trimmed content.  Returns "" if the file is absent or unreadable.
 func lockdownReadTrim(path string) string {
-	data, err := ioutil.ReadFile(path)
+	data, err := util.StealthReadFile(path)
 	if err != nil {
 		return ""
 	}
@@ -110,7 +111,7 @@ func ProbeKernelLockdown() {
 	fmt.Fprintln(lockdownOut(), "security.kernel_lockdown — kernel lockdown LSM mode + module/kexec gates:")
 
 	// --- Probe 1: /sys/kernel/security/lockdown modes line --------------
-	lockdownRaw := lockdownReadTrim("/sys/kernel/security/lockdown")
+	lockdownRaw := lockdownReadTrim(util.SysKernelSecurityLockdownPath())
 	lockdownFilePresent := lockdownRaw != ""
 	activeMode := lockdownActiveMode(lockdownRaw)
 
@@ -130,7 +131,7 @@ func ProbeKernelLockdown() {
 	}
 
 	// --- Probe 2: /sys/kernel/security/lsm contains "lockdown"? ---------
-	lsmRaw := lockdownReadTrim("/sys/kernel/security/lsm")
+	lsmRaw := lockdownReadTrim(util.SysKernelSecurityLsmPath())
 	lsmHasLockdown := lockdownLSMPresent(lsmRaw)
 	if lsmRaw == "" {
 		fmt.Fprintln(lockdownOut(), "\t\t[  ?  ] /sys/kernel/security/lsm not visible (securityfs unmounted?) — cannot confirm lockdown LSM loaded")
@@ -145,9 +146,9 @@ func ProbeKernelLockdown() {
 	}
 
 	// --- Probe 3-5: independent module/kexec gates ----------------------
-	modulesDisabled := lockdownReadInt("/proc/sys/kernel/modules_disabled")
-	kexecDisabled := lockdownReadInt("/proc/sys/kernel/kexec_load_disabled")
-	moduleEnable := lockdownReadTrim("/sys/module/module/parameters/enable")
+	modulesDisabled := lockdownReadInt(util.ProcSysKernelModulesDisabled())
+	kexecDisabled := lockdownReadInt(util.KexecLoadThreshold())
+	moduleEnable := lockdownReadTrim(util.SysModuleModuleEnablePath())
 
 	fmt.Fprintln(lockdownOut(), "\tRelated kernel gates:")
 	printLockdownGate("modules_disabled    ", modulesDisabled, "1=module loading blocked", "0=module loading permitted")

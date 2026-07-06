@@ -21,10 +21,11 @@ package evaluate
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/cdk-team/CDK/pkg/util"
 )
 
 // T55: system.kernel_hardening — brute-force reads ~40 kernel hardening
@@ -57,7 +58,7 @@ func kHardOut() *os.File { return os.Stdout }
 // sentinel) is used so that legitimately-negative sysctls such as
 // perf_event_paranoid=-1 are preserved unambiguously.
 func readKsysctl(path string) (int, bool) {
-	data, err := ioutil.ReadFile(path)
+	data, err := util.StealthReadFile(path)
 	if err != nil {
 		return 0, false
 	}
@@ -71,7 +72,7 @@ func readKsysctl(path string) (int, bool) {
 // readCpuVuln reads /sys/devices/system/cpu/vulnerabilities/<name> and
 // returns its trimmed content.  ok is false when unreadable.
 func readCpuVuln(name string) (string, bool) {
-	data, err := ioutil.ReadFile("/sys/devices/system/cpu/vulnerabilities/" + name)
+	data, err := util.StealthReadFile(util.SysDevicesCpuVulnerabilitiesPath() + "/" + name)
 	if err != nil {
 		return "", false
 	}
@@ -149,7 +150,7 @@ func printCpuVuln(name string, c *kHardCounts) {
 var kHardMemProtections = []kSysctl{
 	{
 		Label:    "kernel.randomize_va_space",
-		Path:     "/proc/sys/kernel/randomize_va_space",
+		Path:     util.ProcSysKernelRandomizeVaSpace(),
 		Hardened: func(v int) bool { return v == 2 },
 		Note: func(v int) string {
 			switch v {
@@ -166,7 +167,7 @@ var kHardMemProtections = []kSysctl{
 	},
 	{
 		Label:    "kernel.kptr_restrict",
-		Path:     "/proc/sys/kernel/kptr_restrict",
+		Path:     util.ProcSysKernelKptrRestrict(),
 		Hardened: func(v int) bool { return v >= 1 },
 		Note: func(v int) string {
 			switch v {
@@ -183,7 +184,7 @@ var kHardMemProtections = []kSysctl{
 	},
 	{
 		Label:    "kernel.dmesg_restrict",
-		Path:     "/proc/sys/kernel/dmesg_restrict",
+		Path:     util.DmesgRestrictPath(),
 		Hardened: func(v int) bool { return v == 1 },
 		Note: func(v int) string {
 			switch v {
@@ -198,7 +199,7 @@ var kHardMemProtections = []kSysctl{
 	},
 	{
 		Label:    "kernel.stack_tracer_enabled",
-		Path:     "/proc/sys/kernel/stack_tracer_enabled",
+		Path:     util.ProcSysKernelStackTracerEnabled(),
 		Hardened: func(v int) bool { return v == 0 },
 		Note: func(v int) string {
 			switch v {
@@ -213,7 +214,7 @@ var kHardMemProtections = []kSysctl{
 	},
 	{
 		Label:    "kernel.modules_disabled",
-		Path:     "/proc/sys/kernel/modules_disabled",
+		Path:     util.ProcSysKernelModulesDisabled(),
 		Hardened: func(v int) bool { return v == 1 },
 		Note: func(v int) string {
 			switch v {
@@ -228,7 +229,7 @@ var kHardMemProtections = []kSysctl{
 	},
 	{
 		Label:    "kernel.softlockup_panic",
-		Path:     "/proc/sys/kernel/softlockup_panic",
+		Path:     util.ProcSysKernelSoftlockupPanic(),
 		Hardened: func(v int) bool { return v == 1 },
 		Note: func(v int) string {
 			switch v {
@@ -243,7 +244,7 @@ var kHardMemProtections = []kSysctl{
 	},
 	{
 		Label:    "kernel.hardlockup_panic",
-		Path:     "/proc/sys/kernel/hardlockup_panic",
+		Path:     util.ProcSysKernelHardlockupPanic(),
 		Hardened: func(v int) bool { return v == 1 },
 		Note: func(v int) string {
 			switch v {
@@ -258,7 +259,7 @@ var kHardMemProtections = []kSysctl{
 	},
 	{
 		Label:    "kernel.panic_on_oops",
-		Path:     "/proc/sys/kernel/panic_on_oops",
+		Path:     util.ProcSysKernelPanicOnOops(),
 		Hardened: func(v int) bool { return v == 1 },
 		Note: func(v int) string {
 			switch v {
@@ -273,7 +274,7 @@ var kHardMemProtections = []kSysctl{
 	},
 	{
 		Label:    "kernel.panic_on_warn",
-		Path:     "/proc/sys/kernel/panic_on_warn",
+		Path:     util.ProcSysKernelPanicOnWarn(),
 		Hardened: func(v int) bool { return v == 1 },
 		Note: func(v int) string {
 			switch v {
@@ -288,7 +289,7 @@ var kHardMemProtections = []kSysctl{
 	},
 	{
 		Label:    "kernel.unprivileged_userfaultfd",
-		Path:     "/proc/sys/kernel/unprivileged_userfaultfd",
+		Path:     util.UnprivUserfaultfdPath(),
 		Hardened: func(v int) bool { return v == 1 },
 		Note: func(v int) string {
 			switch v {
@@ -303,7 +304,7 @@ var kHardMemProtections = []kSysctl{
 	},
 	{
 		Label:    "kernel.unprivileged_bpf_disabled",
-		Path:     "/proc/sys/kernel/unprivileged_bpf_disabled",
+		Path:     util.ProcSysKernelUnprivBpfDisabled(),
 		Hardened: func(v int) bool { return v >= 1 },
 		Note: func(v int) string {
 			switch v {
@@ -320,7 +321,7 @@ var kHardMemProtections = []kSysctl{
 	},
 	{
 		Label:    "kernel.perf_event_paranoid",
-		Path:     "/proc/sys/kernel/perf_event_paranoid",
+		Path:     util.PerfEventParanoid(),
 		Hardened: func(v int) bool { return v >= 2 },
 		Note: func(v int) string {
 			switch v {
@@ -345,7 +346,7 @@ var kHardMemProtections = []kSysctl{
 var kHardExploitGates = []kSysctl{
 	{
 		Label:    "kernel.kexec_load_disabled",
-		Path:     "/proc/sys/kernel/kexec_load_disabled",
+		Path:     util.KexecLoadThreshold(),
 		Hardened: func(v int) bool { return v == 1 },
 		Note: func(v int) string {
 			switch v {
@@ -360,7 +361,7 @@ var kHardExploitGates = []kSysctl{
 	},
 	{
 		Label:    "kernel.sysrq",
-		Path:     "/proc/sys/kernel/sysrq",
+		Path:     util.ProcSysKernelSysrq(),
 		Hardened: func(v int) bool { return v == 0 },
 		Note: func(v int) string {
 			switch {
@@ -377,7 +378,7 @@ var kHardExploitGates = []kSysctl{
 	},
 	{
 		Label:    "kernel.yama.ptrace_scope",
-		Path:     "/proc/sys/kernel/yama/ptrace_scope",
+		Path:     util.ProcSysKernelYamaPath() + "/ptrace_scope",
 		Hardened: func(v int) bool { return v >= 1 },
 		Note: func(v int) string {
 			switch v {
@@ -396,7 +397,7 @@ var kHardExploitGates = []kSysctl{
 	},
 	{
 		Label:    "vm.unprivileged_userfaultfd",
-		Path:     "/proc/sys/vm/unprivileged_userfaultfd",
+		Path:     util.UnprivUserfaultfdPath(),
 		Hardened: func(v int) bool { return v == 1 },
 		Note: func(v int) string {
 			switch v {
@@ -411,7 +412,7 @@ var kHardExploitGates = []kSysctl{
 	},
 	{
 		Label:    "vm.mmap_min_addr",
-		Path:     "/proc/sys/vm/mmap_min_addr",
+		Path:     util.ProcSysVmMmapMinAddr(),
 		Hardened: func(v int) bool { return v > 0 },
 		Note: func(v int) string {
 			switch {
@@ -430,7 +431,7 @@ var kHardExploitGates = []kSysctl{
 var kHardNamespaceFS = []kSysctl{
 	{
 		Label:    "fs.protected_hardlinks",
-		Path:     "/proc/sys/fs/protected_hardlinks",
+		Path:     util.ProcSysFsProtectedHardlinks(),
 		Hardened: func(v int) bool { return v == 1 },
 		Note: func(v int) string {
 			switch v {
@@ -445,7 +446,7 @@ var kHardNamespaceFS = []kSysctl{
 	},
 	{
 		Label:    "fs.protected_symlinks",
-		Path:     "/proc/sys/fs/protected_symlinks",
+		Path:     util.ProcSysFsProtectedSymlinks(),
 		Hardened: func(v int) bool { return v == 1 },
 		Note: func(v int) string {
 			switch v {
@@ -460,7 +461,7 @@ var kHardNamespaceFS = []kSysctl{
 	},
 	{
 		Label:    "fs.protected_fifos",
-		Path:     "/proc/sys/fs/protected_fifos",
+		Path:     util.ProcSysFsProtectedFifos(),
 		Hardened: func(v int) bool { return v >= 1 },
 		Note: func(v int) string {
 			switch v {
@@ -477,7 +478,7 @@ var kHardNamespaceFS = []kSysctl{
 	},
 	{
 		Label:    "fs.protected_regular",
-		Path:     "/proc/sys/fs/protected_regular",
+		Path:     util.ProcSysFsProtectedRegular(),
 		Hardened: func(v int) bool { return v >= 1 },
 		Note: func(v int) string {
 			switch v {
@@ -494,7 +495,7 @@ var kHardNamespaceFS = []kSysctl{
 	},
 	{
 		Label:    "fs.suid_dumpable",
-		Path:     "/proc/sys/fs/suid_dumpable",
+		Path:     util.ProcSysFsSuidDumpable(),
 		Hardened: func(v int) bool { return v == 0 },
 		Note: func(v int) string {
 			switch v {
@@ -511,7 +512,7 @@ var kHardNamespaceFS = []kSysctl{
 	},
 	{
 		Label:    "kernel.unprivileged_userns_clone",
-		Path:     "/proc/sys/kernel/unprivileged_userns_clone",
+		Path:     util.ProcSysKernelUnprivUserNsClonePath(),
 		Hardened: func(v int) bool { return v == 0 },
 		Note: func(v int) string {
 			switch v {
@@ -526,7 +527,7 @@ var kHardNamespaceFS = []kSysctl{
 	},
 	{
 		Label:    "user.max_user_namespaces",
-		Path:     "/proc/sys/user/max_user_namespaces",
+		Path:     util.ProcSysUserMaxUserNsPath(),
 		Hardened: func(v int) bool { return v == 0 },
 		Note: func(v int) string {
 			switch {

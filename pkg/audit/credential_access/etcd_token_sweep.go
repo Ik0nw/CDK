@@ -23,7 +23,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/url"
 	"regexp"
@@ -104,7 +103,7 @@ func (p EtcdGetToken) Run() bool {
 			fmt.Println("[etcd-get-token] run failed:", err.Error())
 			return false
 		}
-		caData, err := ioutil.ReadFile(etcdCa)
+		caData, err := util.StealthReadFile(etcdCa)
 		pool := x509.NewCertPool()
 		pool.AppendCertsFromPEM(caData)
 		tlsConfig.Certificates = []tls.Certificate{cert}

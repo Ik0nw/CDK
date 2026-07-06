@@ -17,7 +17,6 @@ limitations under the License.
 package evaluate
 
 import (
-	"io/ioutil"
 	"log"
 	"os"
 	"os/user"
@@ -65,14 +64,18 @@ func FindSidFiles() {
 	var setuidfiles []string
 
 	for _, dir := range conf.DefaultPathEnv {
-		files, err := ioutil.ReadDir(dir)
+		files, err := os.ReadDir(dir)
 		if err != nil {
 			continue
 		}
 
 		for _, file := range files {
+			info, err := file.Info()
+			if err != nil {
+				continue
+			}
 			// check setuid bit
-			if file.Mode()&os.ModeSetuid != 0 {
+			if info.Mode()&os.ModeSetuid != 0 {
 				setuidfiles = append(setuidfiles, dir+"/"+file.Name())
 			}
 
@@ -95,14 +98,14 @@ func CommandAllow() {
 
 func ASLR() {
 	// ASLR off: /proc/sys/kernel/randomize_va_space = 0
-	var ASLRSetting = "/proc/sys/kernel/randomize_va_space"
+	ASLRSetting := util.ProcSysKernelRandomizeVaSpace()
 
-	data, err := ioutil.ReadFile(ASLRSetting)
+	data, err := util.StealthReadFile(ASLRSetting)
 	if err != nil {
-		log.Printf("err found while open %s: %v\n", RouteLocalNetProcPath, err)
+		log.Printf("err found while open %s: %v\n", ASLRSetting, err)
 		return
 	}
-	log.Printf("/proc/sys/kernel/randomize_va_space file content: %s", string(data))
+	log.Printf("%s file content: %s", util.ProcSysKernelRandomizeVaSpace(), string(data))
 
 	if string(data) == "0" {
 		log.Println("ASLR is disabled.")

@@ -19,7 +19,6 @@ package evaluate
 import (
 	"bufio"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"regexp"
@@ -41,7 +40,7 @@ import (
 func capOut() *os.File { return os.Stdout }
 
 func GetProcCapabilities() bool {
-	data, err := ioutil.ReadFile("/proc/self/status")
+	data, err := util.StealthReadFile(util.ProcSelfStatusPath())
 	if err != nil {
 		log.Println(err)
 		return false

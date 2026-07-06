@@ -20,7 +20,6 @@ limitations under the License.
 package escaping
 
 import (
-	"io/ioutil"
 	"log"
 	"regexp"
 	"strconv"
@@ -28,6 +27,7 @@ import (
 	"github.com/cdk-team/CDK/pkg/audit/base"
 	"github.com/cdk-team/CDK/pkg/plugin"
 	"github.com/cdk-team/CDK/pkg/tool/ps"
+	"github.com/cdk-team/CDK/pkg/util"
 )
 
 const sysPtraceCapMask uint64 = 2 << 18
@@ -37,7 +37,7 @@ func enableSysPtraceCap(mask uint64) bool {
 }
 
 func CheckPidInject() bool {
-	data, err := ioutil.ReadFile("/proc/self/status")
+	data, err := util.StealthReadFile(util.ProcSelfStatusPath())
 	if err != nil {
 		log.Println(err)
 		return false

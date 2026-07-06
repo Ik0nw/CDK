@@ -17,7 +17,6 @@ limitations under the License.
 package util
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"log"
@@ -28,9 +27,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-const mountInfoPath string = "/proc/self/mountinfo"
 const hostDeviceFlag string = "/etc/hosts"
-const cgroupInfoPath string = "/proc/self/cgroup"
 
 // MountInfo
 // Sample: 36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue
@@ -65,29 +62,26 @@ func FindTargetDeviceID(mi *MountInfo) bool {
 }
 
 func GetMountInfo() ([]MountInfo, error) {
-	f, err := os.Open(mountInfoPath)
+	data, err := StealthReadFile(ProcSelfMountinfoPath())
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
 
 	var ret []string
-
-	r := bufio.NewReader(f)
-	for {
-		line, err := r.ReadString('\n')
-		if err != nil {
-			break
+	for _, line := range strings.Split(string(data), "\n") {
+		if line != "" {
+			ret = append(ret, line)
 		}
-		ret = append(ret, strings.Trim(line, "\n"))
 	}
+
 	// 2346 2345 0:261 / /proc rw,nosuid,nodev,noexec,relatime - proc proc rw
 	mountInfos := make([]MountInfo, len(ret))
 
+	mp := ProcSelfMountinfoPath()
 	for _, r := range ret {
 		parts := strings.Split(r, " - ")
 		if len(parts) != 2 {
-			return nil, fmt.Errorf("found invalid mountinfo line in file %s: %s ", mountInfoPath, r)
+			return nil, fmt.Errorf("found invalid mountinfo line in file %s: %s ", mp, r)
 		}
 		mi := MountInfo{}
 
@@ -97,7 +91,7 @@ func GetMountInfo() ([]MountInfo, error) {
 		// mountID = fields[0] ; parentID = fields[1]
 		blockId := strings.Split(fields[2], ":")
 		if len(blockId) != 2 {
-			return nil, fmt.Errorf("found invalid mountinfo line in file %s: %s ", mountInfoPath, r)
+			return nil, fmt.Errorf("found invalid mountinfo line in file %s: %s ", mp, r)
 		}
 		mi.Major = blockId[0]
 		mi.Minor = blockId[1]
@@ -113,7 +107,7 @@ func GetMountInfo() ([]MountInfo, error) {
 		fields = strings.Fields(parts[1])
 		if len(fields) <= 1 || len(fields) > 3 {
 			// unexpect mountinfo
-			return nil, fmt.Errorf("found invalid mountinfo line in file %s: %s ", mountInfoPath, r)
+			return nil, fmt.Errorf("found invalid mountinfo line in file %s: %s ", mp, r)
 		}
 
 		mi.Fstype = fields[0]
@@ -130,7 +124,7 @@ func GetMountInfo() ([]MountInfo, error) {
 		mountInfos = append(mountInfos, mi)
 	}
 
-	return mountInfos, err
+	return mountInfos, nil
 }
 
 func MakeDev(major, minor string) int {
@@ -232,17 +226,18 @@ func GetCgroup(pid int) ([]CgroupInfo, error) {
 		pidStr = fmt.Sprint(pid)
 	}
 
-	cgroupInfoPath := fmt.Sprintf("/proc/%s/cgroup", pidStr)
-	datafd, err := os.Open(cgroupInfoPath)
+	cgroupInfoPath := ProcPath() + "/" + pidStr + "/cgroup"
+	data, err := StealthReadFile(cgroupInfoPath)
 	if err != nil {
 		return nil, err
 	}
-	defer datafd.Close()
 
-	sc := bufio.NewScanner(datafd)
-	for sc.Scan() {
+	for _, line := range strings.Split(string(data), "\n") {
+		if line == "" {
+			continue
+		}
 		// Sample "9:devices:/docker/fc1413683c2976fa292c0b1e011224706c1ecc151bad9ceabc9cfcb8dce4ddbb"
-		originalInfo := sc.Text()
+		originalInfo := line
 		singleCG := strings.Split(strings.TrimSuffix(originalInfo, "\n"), ":")
 		hID, err := strconv.Atoi(singleCG[0])
 		if err != nil {

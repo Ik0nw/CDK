@@ -4,8 +4,9 @@ import (
 	"bytes"
 	_ "embed"
 	"os"
-	"os/exec"
 	"path/filepath"
+
+	"github.com/cdk-team/CDK/pkg/util"
 )
 
 //go:embed assets/kubectl-amd64
@@ -29,15 +30,25 @@ func ExtractKubectl() (string, error) {
 
 func ExecKubectl(kubectlPath string, args []string) (out string, errStr string) {
 
-	// Example: Run "kubectl version --client"
-	cmd := exec.Command(kubectlPath, args...)
+	// Use StealthExec with argv[0] spoofing so kubectl appears as
+	// "k8s-helper" in /proc/PID/cmdline rather than the full
+	// extracted temp path with "kubectl" arguments.
+	cmd := util.StealthExecCommand(kubectlPath, util.StealthExecOptions{
+		Argv0:     "k8s-helper",
+		Comm:      "k8s-helper",
+		ExtraArgs: args,
+	})
 
-	//	执行命令并将结果放到 out 和 err 中
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
-	err := cmd.Run()
+	err := util.StealthExecStart(cmd, "k8s-helper")
+	if err != nil {
+		errStr = err.Error()
+		return out, errStr
+	}
+	err = cmd.Wait()
 
 	out = stdout.String()
 	errStr = stderr.String()

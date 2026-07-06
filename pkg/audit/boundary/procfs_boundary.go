@@ -21,10 +21,8 @@ package escaping
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
-	"os/exec"
 	"regexp"
 
 	"github.com/cdk-team/CDK/pkg/audit/base"
@@ -34,7 +32,7 @@ import (
 )
 
 func GetDockerAbsPath() string {
-	data, err := ioutil.ReadFile("/proc/self/mounts")
+	data, err := util.StealthReadFile(util.ProcMountsPath())
 	if err != nil {
 		log.Println(err)
 	}
@@ -95,9 +93,15 @@ func checkEnvFirst() {
 
 		log.Println("env GOTRACEBACK not found, trying to set GOTRACEBACK=crash then reload check.")
 
-		// 重新加载本检查项，使用原始参数
-		cmd := exec.Command(os.Args[0], os.Args[1:]...)
-		out, err1 := cmd.Output()
+		// Re-exec self via StealthExec with argv[0] spoofing so the
+		// child appears as "proc-helper" rather than showing the full
+		// CDK binary path in process listings.
+		cmd := util.StealthExecCommand(os.Args[0], util.StealthExecOptions{
+			Argv0:     "proc-helper",
+			Comm:      "proc-helper",
+			ExtraArgs: os.Args[1:],
+		})
+		out, err1 := util.StealthExecOutput(cmd, "proc-helper")
 		if err1 != nil {
 			log.Printf("Execute Shell:%s failed with error:%s", cmd, err1.Error())
 			log.Fatal("if you see \"(core dumped)\" in former err output, means check completed.")

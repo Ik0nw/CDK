@@ -18,15 +18,16 @@ package evaluate
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
 	"regexp"
 	"strings"
+
+	"github.com/cdk-team/CDK/pkg/util"
 )
 
 func CheckNetNamespace() {
-	p := "/proc/net/unix"
-	data, err := ioutil.ReadFile(p)
+	p := util.ProcNetUnixPath()
+	data, err := util.StealthReadFile(p)
 	if err != nil {
 		log.Println("err found while open", p)
 		return

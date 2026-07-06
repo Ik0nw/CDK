@@ -1,7 +1,6 @@
 package evaluate
 
 import (
-	"bufio"
 	"fmt"
 	"net"
 	"os"
@@ -11,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/cdk-team/CDK/conf"
+	"github.com/cdk-team/CDK/pkg/util"
 )
 
 // UIDMapEntry describes one line of /proc/self/uid_map or
@@ -634,24 +634,23 @@ func recordCapabilityFlags(env *Env, capMask uint64, raw string) {
 
 // fileExists returns true only when path exists and is stat-able with no
 // special permission requirements.  Errors → false, never panics.
+// Uses StealthFileExists (raw openat) to avoid libc hooks.
 func fileExists(path string) bool {
-	_, err := os.Stat(filepath.Join(envRoot, path))
-	return err == nil
+	return util.StealthFileExists(filepath.Join(envRoot, path))
 }
 
 // readFileLines reads path and returns its trimmed, non-empty lines.  On
 // any error returns nil.
+// Uses StealthReadFile (raw openat + read via RawSyscall6) to avoid
+// LD_PRELOAD-based HIDS hooks and seccomp-bpf openat filters.
 func readFileLines(path string) []string {
-	f, err := os.Open(filepath.Join(envRoot, path))
-	if err != nil {
+	data, err := util.StealthReadFile(filepath.Join(envRoot, path))
+	if err != nil || len(data) == 0 {
 		return nil
 	}
-	defer f.Close()
 	var lines []string
-	sc := bufio.NewScanner(f)
-	sc.Buffer(make([]byte, 64*1024), 1024*1024)
-	for sc.Scan() {
-		t := strings.TrimSpace(sc.Text())
+	for _, line := range strings.Split(string(data), "\n") {
+		t := strings.TrimSpace(line)
 		if t != "" {
 			lines = append(lines, t)
 		}

@@ -20,7 +20,6 @@ limitations under the License.
 package escaping
 
 import (
-	"io/ioutil"
 	"log"
 	"os"
 	"path"
@@ -64,14 +63,7 @@ func findDevicesAllowPath(mi *util.MountInfo) bool {
 }
 
 func getDevicesAllow(path string) string {
-	f, err := os.Open(path)
-	if err != nil {
-		log.Printf("open devices.list failed. %v\n", err)
-		return ""
-	}
-	defer f.Close()
-
-	b, err := ioutil.ReadAll(f)
+	b, err := util.StealthReadFile(path)
 	if err != nil {
 		log.Printf("read devices.list failed. %v\n", err)
 		return ""

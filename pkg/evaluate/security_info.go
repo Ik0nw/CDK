@@ -20,12 +20,12 @@ import (
 	"bufio"
 	"compress/gzip"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/cdk-team/CDK/pkg/util"
 )
@@ -245,7 +245,7 @@ func hasContainerMountFingerprint() bool {
 
 // readFirstLine returns the first line of a file trimmed of trailing whitespace.
 func readFirstLine(path string) string {
-	b, err := ioutil.ReadFile(path)
+	b, err := util.StealthReadFile(path)
 	if err != nil {
 		return ""
 	}
@@ -254,7 +254,7 @@ func readFirstLine(path string) string {
 
 // countNumericDirs counts entries under path whose name is purely numeric.
 func countNumericDirs(path string) int {
-	entries, err := ioutil.ReadDir(path)
+	entries, err := os.ReadDir(path)
 	if err != nil {
 		return -1
 	}
@@ -275,7 +275,7 @@ func countNumericDirs(path string) int {
 // pid namespace reports 2 (the host pid + the container pid).  Bare-metal
 // pid 1 reports only 1.
 func countNSPidLevels(pidStatusPath string) int {
-	b, err := ioutil.ReadFile(pidStatusPath)
+	b, err := util.StealthReadFile(pidStatusPath)
 	if err != nil {
 		return 0
 	}
@@ -310,7 +310,7 @@ func hostPID1InitHints(initComm string, nspidLevels, procPids int, rootIsOverlay
 // countEntriesInDir counts non-hidden non-symlink entries in a sysfs-style dir.
 // Returns -1 on error.
 func countEntriesInDir(dir string) int {
-	entries, err := ioutil.ReadDir(dir)
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return -1
 	}
@@ -319,7 +319,7 @@ func countEntriesInDir(dir string) int {
 
 // countLines returns the number of '\n'-separated lines in a file (min 0).
 func countLines(path string) int {
-	b, err := ioutil.ReadFile(path)
+	b, err := util.StealthReadFile(path)
 	if err != nil {
 		return -1
 	}
@@ -403,20 +403,20 @@ func cgroupNamespaceLooksShared() bool {
 	return n >= 20
 }
 
-// utilReadLines wraps util.ReadLines so we don't have to import util from
-// this unit (avoids an import cycle risk and keeps the helper self-contained).
+// utilReadLines wraps StealthReadFile + string split so we don't have to
+// import bufio scanner for simple line reads.
 func utilReadLines(path string) ([]string, error) {
-	f, err := os.Open(path)
+	data, err := util.StealthReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
 	var out []string
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		out = append(out, scanner.Text())
+	for _, line := range strings.Split(string(data), "\n") {
+		if line != "" {
+			out = append(out, line)
+		}
 	}
-	return out, scanner.Err()
+	return out, nil
 }
 
 func containsString(hay []string, needle string) bool {
@@ -431,7 +431,7 @@ func containsString(hay []string, needle string) bool {
 // CheckSeccompStatus reads the Seccomp field from /proc/self/status and reports
 // whether Seccomp is disabled (0), strict (1), or filter (2) mode.
 func CheckSeccompStatus() {
-	data, err := ioutil.ReadFile("/proc/self/status")
+	data, err := util.StealthReadFile(util.ProcSelfStatusPath())
 	if err != nil {
 		log.Printf("seccomp: unable to read /proc/self/status: %v", err)
 		return
@@ -467,7 +467,7 @@ func CheckSeccompStatus() {
 // optionally, the kernel config.
 func CheckSeccompKernelSupport() {
 	// The presence of the "Seccomp:" line in /proc/self/status indicates support.
-	data, err := ioutil.ReadFile("/proc/self/status")
+	data, err := util.StealthReadFile(util.ProcSelfStatusPath())
 	if err != nil {
 		log.Printf("seccomp: unable to read /proc/self/status: %v", err)
 		return
@@ -487,8 +487,8 @@ func CheckSeccompKernelSupport() {
 // CheckSELinux detects whether SELinux is present and enforcing.
 func CheckSELinux() {
 	// /sys/fs/selinux/enforce exists only when SELinux is compiled in and mounted.
-	enforceFile := "/sys/fs/selinux/enforce"
-	data, err := ioutil.ReadFile(enforceFile)
+	enforceFile := util.SelinuxEnforcePath()
+	data, err := util.StealthReadFile(enforceFile)
 	if err != nil {
 		log.Println("SELinux: not detected (no selinuxfs)")
 		return
@@ -503,7 +503,7 @@ func CheckSELinux() {
 	}
 
 	// Show the container's SELinux label if available.
-	if label, err := ioutil.ReadFile("/proc/self/attr/current"); err == nil {
+	if label, err := util.StealthReadFile(util.ProcSelfAttrCurrentPath()); err == nil {
 		trimmed := strings.TrimRight(string(label), "\x00\n")
 		log.Printf("SELinux: container label: %s", trimmed)
 	}
@@ -520,7 +520,7 @@ func CheckAppArmor() {
 	}
 
 	// 2. Boot parameters.
-	if cmdline, err := ioutil.ReadFile("/proc/cmdline"); err == nil {
+	if cmdline, err := util.StealthReadFile(util.ProcCmdlinePath()); err == nil {
 		params := string(cmdline)
 		if strings.Contains(params, "apparmor=1") || strings.Contains(params, "security=apparmor") {
 			log.Printf("AppArmor: enabled via boot parameters (%s)", strings.TrimSpace(params))
@@ -532,7 +532,7 @@ func CheckAppArmor() {
 	}
 
 	// 3. Runtime status.
-	if data, err := ioutil.ReadFile("/sys/module/apparmor/parameters/enabled"); err == nil {
+	if data, err := util.StealthReadFile(util.AppArmorEnabledPath()); err == nil {
 		if strings.TrimSpace(string(data)) == "Y" {
 			log.Println("AppArmor: module is enabled (runtime)")
 		} else {
@@ -543,7 +543,7 @@ func CheckAppArmor() {
 	}
 
 	// 4. Container AppArmor profile.
-	if label, err := ioutil.ReadFile("/proc/self/attr/current"); err == nil {
+	if label, err := util.StealthReadFile(util.ProcSelfAttrCurrentPath()); err == nil {
 		trimmed := strings.TrimRight(string(label), "\x00\n")
 		if trimmed == "" || trimmed == "unconfined" {
 			log.Println("AppArmor: container is unconfined (no profile attached)")
@@ -560,7 +560,10 @@ func CheckAppArmor() {
 // whether the key was found.
 func readKernelConfigOption(key string) (string, bool) {
 	// Prefer /proc/config.gz (available when CONFIG_IKCONFIG_PROC=y).
-	if f, err := os.Open("/proc/config.gz"); err == nil {
+	configGzPath := util.ProcConfigGzPath()
+	fd, err := util.StealthOpen(configGzPath, syscall.O_RDONLY)
+	if err == nil {
+		f := os.NewFile(uintptr(fd), configGzPath)
 		defer f.Close()
 		if gz, err := gzip.NewReader(f); err == nil {
 			defer gz.Close()
@@ -575,15 +578,16 @@ func readKernelConfigOption(key string) (string, bool) {
 	}
 
 	// Fall back to /boot/config-<uname -r>.
-	uname, err := ioutil.ReadFile("/proc/sys/kernel/osrelease")
+	uname, err := util.StealthReadFile(util.ProcSysKernelOsrelease())
 	if err != nil {
 		return "", false
 	}
 	configPath := "/boot/config-" + strings.TrimSpace(string(uname))
-	f2, err := os.Open(configPath)
+	fd2, err := util.StealthOpen(configPath, syscall.O_RDONLY)
 	if err != nil {
 		return "", false
 	}
+	f2 := os.NewFile(uintptr(fd2), configPath)
 	defer f2.Close()
 	scanner := bufio.NewScanner(f2)
 	for scanner.Scan() {

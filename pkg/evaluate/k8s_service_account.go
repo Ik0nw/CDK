@@ -21,7 +21,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"sort"
 	"strings"
@@ -106,7 +105,7 @@ func truncate(s string, maxRunes int) string {
 // privilege so the caller can short-circuit its "high-authority" return
 // value even when the API server is unreachable.
 func decodeAndPrintSAToken(tokenPath string) bool {
-	raw, err := ioutil.ReadFile(tokenPath)
+	raw, err := util.StealthReadFile(tokenPath)
 	if err != nil {
 		fmt.Printf("\tSA token file unreadable: %v\n", err)
 		return false

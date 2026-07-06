@@ -39,3 +39,5 @@ __debug_bin
 
 /cdk
 .cache/
+*.log
+/dist

