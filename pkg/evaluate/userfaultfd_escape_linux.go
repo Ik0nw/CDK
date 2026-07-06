@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"syscall"
 
 	"github.com/cdk-team/CDK/pkg/util"
 )
@@ -76,27 +75,33 @@ func CheckUserfaultfdEscape() {
 		fmt.Fprintf(os.Stdout, "\t[AMBER] cannot read vm.unprivileged_userfaultfd (sysctl not present or <4.11 kernel)\n")
 	}
 
-	// --- Signal 2: Can we actually open userfaultfd? ---
-	// userfaultfd(2) syscall number varies by arch.  On x86_64 it's 282.
-	// We probe with UFFD_USER_MODE_ONLY (0x1) flag which is safe.
-	const (
-		sysUserfaultfd    = 282 // x86_64
-		UFFD_USER_MODE_ONLY = 0x1
-	)
-	fd, _, errno := syscall.RawSyscall6(uintptr(sysUserfaultfd),
-		uintptr(UFFD_USER_MODE_ONLY), 0, 0, 0, 0, 0)
-
-	if errno == 0 {
-		fmt.Fprintf(os.Stdout, "\t[GREEN] userfaultfd syscall SUCCEEDED (fd=%d) — uffd usable from container\n", fd)
-		fmt.Fprintf(os.Stdout, "\t         uffd allows precise control over page-fault timing → kernel race exploits\n")
-		syscall.Close(int(fd))
+	// --- Signal 2: userfaultfd syscall viability ---
+	// We deliberately DO NOT probe userfaultfd(2) via raw syscall because
+	// some execution environments (notably Apple Rosetta 2 for amd64-on-arm64
+	// Docker Desktop) raise SIGTRAP for unimplemented syscalls instead of
+	// returning ENOSYS, which crashes the process.
+	//
+	// Instead, we infer syscall availability from:
+	//   a) The sysctl value (unprivileged_userfaultfd=1 implies syscall exists)
+	//   b) Kernel version (>= 4.3 has userfaultfd)
+	//   c) Whether /dev/fuse is present (FUSE+uffd combo indicator)
+	//
+	// This is a safe read-only approach that avoids the crash.
+	if uffdSysctl == "1" {
+		fmt.Fprintf(os.Stdout, "\t[GREEN] sysctl=1 implies userfaultfd syscall is available to unprivileged users\n")
 		findings++
 	} else {
-		fmt.Fprintf(os.Stdout, "\t[AMBER] userfaultfd syscall failed: %v\n", errno)
-		if errno == syscall.EPERM {
-			fmt.Fprintf(os.Stdout, "\t         EPERM — seccomp or LSM blocking uffd (good)\n")
-		} else if errno == syscall.ENOSYS {
-			fmt.Fprintf(os.Stdout, "\t         ENOSYS — kernel built without userfaultfd support\n")
+		kernelVer := getKernelVersion()
+		if kernelVer != "" && kernelVersionAtLeast(kernelVer, 4, 3) {
+			fmt.Fprintf(os.Stdout, "\t[AMBER] kernel >= 4.3 has userfaultfd, but unprivileged access disabled (sysctl=%s)\n",
+				func() string {
+					if uffdSysctl != "" {
+						return strings.TrimSpace(uffdSysctl)
+					}
+					return "unreadable"
+				}())
+		} else {
+			fmt.Fprintf(os.Stdout, "\t[AMBER] userfaultfd syscall not probed (emulation-safe: read-only assessment)\n")
 		}
 	}
 
@@ -167,6 +172,26 @@ func isVulnerableUFFDKernel(ver string) bool {
 // getKernelVersion reads the kernel version from /proc/sys/kernel/osrelease.
 func getKernelVersion() string {
 	return stealthReadFirstLine(util.ProcSysKernelOsrelease())
+}
+
+// kernelVersionAtLeast returns true if the kernel version string is
+// >= major.minor.  Returns false if parsing fails.
+func kernelVersionAtLeast(ver string, wantMajor, wantMinor int) bool {
+	parts := strings.SplitN(ver, ".", 3)
+	if len(parts) < 2 {
+		return false
+	}
+	major := 0
+	minor := 0
+	fmt.Sscanf(parts[0], "%d", &major)
+	fmt.Sscanf(parts[1], "%d", &minor)
+	if major > wantMajor {
+		return true
+	}
+	if major == wantMajor && minor >= wantMinor {
+		return true
+	}
+	return false
 }
 
 func init() {
