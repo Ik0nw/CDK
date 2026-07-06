@@ -81,6 +81,47 @@ CGO_ENABLED=0 GOOS=linux GOARCH=386 go build -trimpath -ldflags="-s -w" -o ./dis
 CGO_ENABLED=0 GOOS=linux GOARCH=arm go build -trimpath -ldflags="-s -w" -o ./dist/baseline-audit-linux-arm ./cmd/cdk
 ```
 
+### Download Pre-built Binaries
+
+Pre-built binaries are available from the [GitHub Releases](https://github.com/Ik0nw/CDK/releases) page.
+
+```bash
+# Linux x86_64 (most common — containers, VMs)
+curl -L https://github.com/Ik0nw/CDK/releases/latest/download/cdk-linux-amd64 -o cdk
+chmod +x cdk
+
+# Linux ARM64 (Graviton, Raspberry Pi, Apple Silicon VMs)
+curl -L https://github.com/Ik0nw/CDK/releases/latest/download/cdk-linux-arm64 -o cdk
+chmod +x cdk
+
+# Linux i386 (legacy 32-bit)
+curl -L https://github.com/Ik0nw/CDK/releases/latest/download/cdk-linux-386 -o cdk
+chmod +x cdk
+
+# macOS Intel
+curl -L https://github.com/Ik0nw/CDK/releases/latest/download/cdk-darwin-amd64 -o cdk
+chmod +x cdk
+
+# macOS Apple Silicon
+curl -L https://github.com/Ik0nw/CDK/releases/latest/download/cdk-darwin-arm64 -o cdk
+chmod +x cdk
+```
+
+Verify integrity with SHA256 checksums:
+
+```bash
+curl -L https://github.com/Ik0nw/CDK/releases/latest/download/checksums.txt -o checksums.txt
+shasum -a 256 -c checksums.txt
+```
+
+| Platform | Binary | Size |
+|----------|--------|------|
+| Linux x86_64 | `cdk-linux-amd64` | ~12 MB |
+| Linux ARM64 | `cdk-linux-arm64` | ~11 MB |
+| Linux i386 | `cdk-linux-386` | ~12 MB |
+| macOS Intel | `cdk-darwin-amd64` | ~12 MB |
+| macOS Apple Silicon | `cdk-darwin-arm64` | ~11 MB |
+
 ---
 
 ## Deployment

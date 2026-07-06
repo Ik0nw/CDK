@@ -116,6 +116,39 @@ make build
 # Binary output: dist/baseline-audit-linux-amd64
 ```
 
+### Download Pre-built Binaries
+
+Pre-built binaries for all platforms are available on the [GitHub Releases](https://github.com/Ik0nw/CDK/releases) page.
+
+```bash
+# Linux x86_64 (containers, VMs, bare-metal)
+curl -L https://github.com/Ik0nw/CDK/releases/latest/download/cdk-linux-amd64 -o cdk
+chmod +x cdk
+
+# Linux ARM64 (AWS Graviton, Raspberry Pi, Apple Silicon VMs)
+curl -L https://github.com/Ik0nw/CDK/releases/latest/download/cdk-linux-arm64 -o cdk
+chmod +x cdk
+
+# macOS (Intel / Apple Silicon — for local testing)
+curl -L https://github.com/Ik0nw/CDK/releases/latest/download/cdk-darwin-arm64 -o cdk
+chmod +x cdk
+```
+
+Verify SHA256 checksums:
+
+```bash
+curl -L https://github.com/Ik0nw/CDK/releases/latest/download/checksums.txt -o checksums.txt
+shasum -a 256 -c checksums.txt
+```
+
+| Platform | Binary |
+|----------|--------|
+| Linux x86_64 | `cdk-linux-amd64` |
+| Linux ARM64 | `cdk-linux-arm64` |
+| Linux i386 | `cdk-linux-386` |
+| macOS Intel | `cdk-darwin-amd64` |
+| macOS Apple Silicon | `cdk-darwin-arm64` |
+
 ### Deploy
 
 ```bash
